@@ -1,0 +1,405 @@
+import * as React from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle,
+  CardDescription
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { 
+  User, 
+  Phone, 
+  MapPin, 
+  Package, 
+  CreditCard, 
+  Truck,
+  Search,
+  History,
+  Info
+} from "lucide-react";
+
+const districts = [
+  "Баянзүрх", "Сонгинохайрхан", "Баянгол", "Хан-Уул", "Сүхбаатар", "Чингэлтэй", "Налайх", "Багануур"
+];
+
+const formSchema = z.object({
+  receiverName: z.string().min(2, "Нэр оруулна уу"),
+  phone: z.string().min(8, "Утасны дугаар оруулна уу"),
+  secondaryPhone: z.string().optional(),
+  district: z.string().min(1, "Дүүрэг сонгоно уу"),
+  khoroo: z.string().min(1, "Хороо оруулна уу"),
+  addressText: z.string().min(5, "Дэлгэрэнгүй хаяг оруулна уу"),
+  locationDetail: z.string().optional(),
+  productName: z.string().min(1, "Барааны нэр оруулна уу"),
+  quantity: z.preprocess((val) => Number(val), z.number().min(1, "Тоо ширхэг оруулна уу")),
+  price: z.preprocess((val) => Number(val), z.number().min(1, "Үнэ оруулна уу")),
+  deliveryFee: z.preprocess((val) => Number(val), z.number().default(5000)),
+  totalAmount: z.number(),
+  paymentStatus: z.string().default("UNPAID"),
+  paymentMethod: z.string().default("CASH"),
+  agentId: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+interface FormValues {
+  receiverName: string;
+  phone: string;
+  secondaryPhone?: string;
+  district: string;
+  khoroo: string;
+  addressText: string;
+  locationDetail?: string;
+  productName: string;
+  quantity: number;
+  price: number;
+  deliveryFee: number;
+  totalAmount: number;
+  paymentStatus: string;
+  paymentMethod: string;
+  agentId?: string;
+  notes?: string;
+}
+
+export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
+  const [agents, setAgents] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [prevAddresses, setPrevAddresses] = React.useState<any[]>([]);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema) as any,
+    defaultValues: {
+      receiverName: "",
+      phone: "",
+      secondaryPhone: "",
+      district: "",
+      khoroo: "",
+      addressText: "",
+      locationDetail: "",
+      productName: "",
+      quantity: 1,
+      price: 0,
+      deliveryFee: 5000,
+      totalAmount: 5000,
+      paymentStatus: "UNPAID",
+      paymentMethod: "CASH",
+      agentId: "",
+      notes: ""
+    } as any
+  });
+
+  const { watch, setValue, register } = form;
+  const price = watch("price");
+  const deliveryFee = watch("deliveryFee");
+  const quantity = watch("quantity");
+
+  React.useEffect(() => {
+    const p = parseFloat(String(price)) || 0;
+    const f = parseFloat(String(deliveryFee)) || 0;
+    const q = parseInt(String(quantity)) || 0;
+    setValue("totalAmount", (p * q) + f);
+  }, [price, deliveryFee, quantity, setValue]);
+
+  React.useEffect(() => {
+    fetch("/api/agents").then(res => res.json()).then(setAgents);
+  }, []);
+
+  const searchCustomer = async (phone: string) => {
+    if (phone.length < 8) return;
+    try {
+      const res = await fetch(`/api/customers/search?phone=${phone}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setValue("receiverName", data.name);
+          setPrevAddresses(data.addresses || []);
+          toast.info("Өмнөх хэрэглэгчийн мэдээлэл олдлоо");
+        }
+      }
+    } catch (e) {}
+  };
+
+  const useAddress = (addr: any) => {
+    setValue("district", addr.district);
+    setValue("khoroo", addr.khoroo);
+    setValue("addressText", addr.street);
+    setValue("locationDetail", addr.description);
+    setPrevAddresses([]);
+  };
+
+  const onSubmit = async (values: any) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (res.ok) {
+        toast.success("Захиалга амжилттай бүртгэгдлээ");
+        onSuccess();
+      } else {
+        toast.error("Алдаа гарлаа");
+      }
+    } catch (e) {
+      toast.error("Сүлжээний алдаа");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Шинэ захиалга</h1>
+          <p className="text-sm text-slate-500 mt-1">Хүргэлтийн мэдээллийг үнэн зөв оруулна уу.</p>
+        </div>
+      </div>
+
+      <form onSubmit={form.handleSubmit(onSubmit as any)} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Customer Info */}
+        <div className="lg:col-span-2 space-y-6">
+          {prevAddresses.length > 0 && (
+            <div className="flex gap-3 bg-[#eff6ff] p-4 rounded-xl border border-dashed border-[#2563eb] items-center">
+              <div className="w-2 h-2 rounded-full bg-[#2563eb] animate-pulse"></div>
+              <strong className="text-sm text-[#1e293b]">Дугаар хайлт:</strong>
+              <span className="text-xs text-slate-600">
+                {watch("phone")}-аар олдсон {prevAddresses.length} хаяг байна.
+              </span>
+              <div className="ml-auto flex gap-2">
+                {prevAddresses.slice(0, 1).map((addr, i) => (
+                  <Button 
+                    key={i}
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="bg-white border-slate-200 h-8 text-[10px]"
+                    onClick={() => useAddress(addr)}
+                  >
+                    Өмнөх хаяг ашиглах
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Card className="border border-[var(--border)] shadow-sm rounded-xl">
+            <CardHeader className="bg-[#f8fafc]/50 border-b border-slate-50">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <User size={14} className="text-blue-500" />
+                Хэрэглэгч
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-xs font-semibold">Утасны дугаар</Label>
+                <div className="relative">
+                  <Input 
+                    {...register("phone")} 
+                    placeholder="8888xxxx" 
+                    onBlur={(e) => searchCustomer(e.target.value)}
+                    className="pl-10 h-10 bg-[#f8fafc] border-slate-200 focus-visible:ring-1"
+                  />
+                  <Phone size={14} className="absolute left-3 top-3 text-slate-400" />
+                </div>
+                {form.formState.errors.phone && <p className="text-[10px] text-red-500 font-medium">{form.formState.errors.phone.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="receiverName" className="text-xs font-semibold">Хүлээн авагчийн нэр</Label>
+                <div className="relative">
+                  <Input {...register("receiverName")} placeholder="Нэр" className="pl-10 h-10 bg-[#f8fafc] border-slate-200 focus-visible:ring-1" />
+                  <User size={14} className="absolute left-3 top-3 text-slate-400" />
+                </div>
+                {form.formState.errors.receiverName && <p className="text-[10px] text-red-500 font-medium">{form.formState.errors.receiverName.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="secondaryPhone" className="text-xs font-semibold">Нэмэлт утас</Label>
+                <Input {...register("secondaryPhone")} placeholder="Заавал биш" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-[var(--border)] shadow-sm rounded-xl">
+            <CardHeader className="bg-[#f8fafc]/50 border-b border-slate-50">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <MapPin size={14} className="text-red-500" />
+                Хаяг
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Дүүрэг</Label>
+                <Select 
+                  onValueChange={(v) => setValue("district", v)}
+                  value={watch("district") || ""}
+                >
+                  <SelectTrigger className="h-10 bg-[#f8fafc] border-slate-200">
+                    <SelectValue placeholder="Дүүрэг сонгох" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Хороо</Label>
+                <Input {...register("khoroo")} placeholder="Хороо" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+
+              <div className="md:col-span-2 space-y-2">
+                <Label className="text-xs font-semibold">Дэлгэрэнгүй хаяг / Байр, тоот</Label>
+                <Input {...register("addressText")} placeholder="Жишээ: 12-р байр 45 тоот" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+
+              <div className="md:col-span-2 space-y-2">
+                <Label className="text-xs font-semibold">Байршлын тайлбар (Очих зам)</Label>
+                <Input {...register("locationDetail")} placeholder="Жишээ: Номин супермаркетын баруун талын байр" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-[var(--border)] shadow-sm rounded-xl">
+            <CardHeader className="bg-[#f8fafc]/50 border-b border-slate-50">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <Package size={14} className="text-indigo-500" />
+                Бараа
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-2 space-y-2">
+                <Label className="text-xs font-semibold">Барааны нэр</Label>
+                <Input {...register("productName")} placeholder="Барааны нэр" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Тоо ширхэг</Label>
+                <Input {...register("quantity")} type="number" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Үнэ (Нэгж)</Label>
+                <Input {...register("price")} type="number" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar Summary */}
+        <div className="space-y-6">
+          <Card className="border-none shadow-lg bg-[#0f172a] text-white rounded-xl">
+            <CardHeader>
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <CreditCard size={14} className="text-white" />
+                Төлбөр тооцоо
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-300">Хүргэлтийн төлбөр</Label>
+                <Input 
+                  {...register("deliveryFee")} 
+                  type="number" 
+                  className="bg-slate-800 border-slate-700 text-white h-10" 
+                />
+              </div>
+
+              <div className="pt-4 border-t border-white/10 space-y-3">
+                <div className="flex justify-between items-center text-xs text-slate-400">
+                  <span>Барааны дүн:</span>
+                  <span className="text-slate-200 font-medium">{(parseFloat(String(watch("price"))) * (parseInt(String(watch("quantity"))) || 0)).toLocaleString()} ₮</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-slate-400">
+                  <span>Хүргэлт:</span>
+                  <span className="text-slate-200 font-medium">{parseFloat(String(watch("deliveryFee"))).toLocaleString()} ₮</span>
+                </div>
+                <div className="flex justify-between items-center text-lg font-extrabold text-white pt-3 border-t border-white/10">
+                  <span>НИЙТ:</span>
+                  <span className="text-[#22c55e]">{watch("totalAmount").toLocaleString()} ₮</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-4">
+                <Label className="text-xs font-semibold text-slate-300">Төлбөрийн төлөв</Label>
+                <Select onValueChange={(v) => setValue("paymentStatus", v)} value={watch("paymentStatus") || ""}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 h-10 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
+                    <SelectItem value="PAID">Төлсөн</SelectItem>
+                    <SelectItem value="PARTIAL">Хэсэгчлэн</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-300">Төлбөрийн арга</Label>
+                <Select onValueChange={(v) => setValue("paymentMethod", v)} value={watch("paymentMethod") || ""}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 h-10 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Бэлэн</SelectItem>
+                    <SelectItem value="BANK">Дансаар</SelectItem>
+                    <SelectItem value="QPAY">QPay</SelectItem>
+                    <SelectItem value="TRANSFER">Шилжүүлэг</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-[var(--border)] shadow-sm rounded-xl">
+            <CardHeader className="bg-[#f8fafc]/50 border-b border-slate-50">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <Truck size={14} className="text-orange-500" />
+                Хүргэгч
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Хүргэгч оноох</Label>
+                <Select onValueChange={(v) => setValue("agentId", v)} value={watch("agentId") || ""}>
+                  <SelectTrigger className="h-10 bg-[#f8fafc] border-slate-200">
+                    <SelectValue placeholder="Сонгох" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Тэмдэглэл</Label>
+                <Input {...register("notes")} placeholder="Нэмэлт тайлбар" className="h-10 bg-[#f8fafc] border-slate-200 text-xs" />
+              </div>
+
+              <Button 
+                type="submit" 
+                className="w-full bg-[#2563eb] hover:bg-[#1e40af] font-bold h-11 rounded-lg text-sm shadow-lg shadow-blue-500/20"
+                disabled={loading}
+              >
+                {loading ? "Бүртгэж байна..." : "БҮРТГЭЛ ХАДГАЛАХ"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </form>
+    </div>
+  );
+}
