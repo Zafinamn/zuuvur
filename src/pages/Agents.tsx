@@ -36,10 +36,15 @@ export default function Agents() {
     setLoading(true);
     try {
       const res = await fetch("/api/agents");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.slice(0, 50)}`);
+      }
       const data = await res.json();
       setAgents(data);
     } catch (e) {
-      toast.error("Мэдээлэл татахад алдаа гарлаа");
+      console.error("Fetch agents error:", e);
+      toast.error(`Мэдээлэл татахад алдаа гарлаа: ${e instanceof Error ? e.message : ""}`);
     } finally {
       setLoading(false);
     }
@@ -65,8 +70,15 @@ export default function Agents() {
         setOpen(false);
         fetchAgents();
       } else {
-        const err = await res.json();
-        toast.error(`Алдаа гарлаа: ${err.error || "Үл мэдэгдэх алдаа"}`);
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const err = await res.json();
+          toast.error(`Алдаа гарлаа: ${err.error || "Үл мэдэгдэх алдаа"}`);
+        } else {
+          const text = await res.text();
+          console.error("Non-JSON error response:", text);
+          toast.error(`Серверийн алдаа (${res.status}): ${text.slice(0, 50)}...`);
+        }
       }
     } catch (e) {
       console.error("Fetch catch error:", e);

@@ -4,13 +4,16 @@ import { createServer as createViteServer } from "vite";
 import { PrismaClient } from "@prisma/client";
 import path from "path";
 
+import fs from "fs";
+
 const prisma = new PrismaClient();
-const app = express();
+export const app = express();
 app.use(express.json());
 
-// Request logger
+// Request logger to file
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  const log = `${new Date().toISOString()} - ${req.method} ${req.url}\n`;
+  fs.appendFileSync("access.log", log);
   next();
 });
 
@@ -219,9 +222,9 @@ app.post("/api/agents", async (req, res) => {
   try {
     const agent = await prisma.deliveryAgent.create({ data: req.body });
     res.json(agent);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Agent creation error:", error);
-    res.status(500).json({ error: "Create failed" });
+    res.status(500).json({ error: error.message || "Create failed" });
   }
 });
 
@@ -255,7 +258,22 @@ app.get("/api/stats", async (req, res) => {
 });
 
 async function startServer() {
-  // Start listening immediately
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  // Start listening
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
@@ -263,11 +281,8 @@ async function startServer() {
   // Background tasks
   (async () => {
     try {
-      // Check DB connection
       await prisma.$connect();
       console.log("Connected to Supabase successfully.");
-
-      // Seed admin if not exists
       const admin = await prisma.user.findUnique({ where: { email: "admin@delivery.mn" } });
       if (!admin) {
         await prisma.user.create({
@@ -283,21 +298,6 @@ async function startServer() {
       console.error("Background startup tasks failed:", err);
     }
   })();
-
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
 }
 
 startServer();
