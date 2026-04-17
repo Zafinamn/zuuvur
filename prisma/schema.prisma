@@ -33,6 +33,8 @@ model Address {
   khoroo      String   // Хороо
   street      String   // Гэрийн хаяг
   description String?  // Байршлын тайлбар
+  latitude    Float?
+  longitude   Float?
   orders      Order[]
   createdAt   DateTime @default(now())
 }
@@ -56,6 +58,8 @@ model Order {
   khoroo         String
   addressText    String
   locationDetail String?
+  latitude       Float?
+  longitude      Float?
   productName    String
   quantity       Int
   price          Float

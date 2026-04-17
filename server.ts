@@ -95,6 +95,8 @@ app.post("/api/orders", async (req, res) => {
           district: data.district,
           khoroo: data.khoroo,
           description: data.locationDetail,
+          latitude: data.latitude ? parseFloat(data.latitude) : null,
+          longitude: data.longitude ? parseFloat(data.longitude) : null,
         },
       });
     }
@@ -112,6 +114,8 @@ app.post("/api/orders", async (req, res) => {
         khoroo: data.khoroo,
         addressText: data.addressText,
         locationDetail: data.locationDetail,
+        latitude: data.latitude ? parseFloat(data.latitude) : null,
+        longitude: data.longitude ? parseFloat(data.longitude) : null,
         productName: data.productName,
         quantity: parseInt(data.quantity) || 1,
         price: parseFloat(data.price),

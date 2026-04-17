@@ -31,6 +31,7 @@ import {
   XCircle, 
   Clock, 
   Truck,
+  MapPin,
   Calendar as CalendarIcon,
   DollarSign
 } from "lucide-react";
@@ -197,7 +198,19 @@ export default function Orders() {
                     <TableCell className="font-semibold text-sm text-slate-800">{order.receiverName}</TableCell>
                     <TableCell className="text-xs text-slate-600">{order.phone}</TableCell>
                     <TableCell className="max-w-[180px] truncate text-xs text-slate-500">
-                      {order.district}, {order.khoroo}, {order.addressText}
+                      <div className="flex flex-col">
+                        <span>{order.district}, {order.khoroo}, {order.addressText}</span>
+                        {order.latitude && order.longitude && (
+                          <a 
+                            href={`https://www.openstreetmap.org/?mlat=${order.latitude}&mlon=${order.longitude}#map=17/${order.latitude}/${order.longitude}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1"
+                          >
+                            <MapPin size={10} /> Байршил харах
+                          </a>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right font-bold text-slate-900">{order.totalAmount.toLocaleString()}₮</TableCell>
                     <TableCell>

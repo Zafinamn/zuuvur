@@ -19,7 +19,45 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { 
+  MapContainer, 
+  TileLayer, 
+  useMap, 
+  useMapEvents 
+} from "react-leaflet";
+import L from "leaflet";
 import { toast } from "sonner";
+import "leaflet/dist/leaflet.css";
+
+// Fix for default marker icons in Leaflet
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+let DefaultIcon = L.icon({
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+function MapEvents({ onChange }: { onChange: (pos: { lat: number, lng: number }) => void }) {
+  const map = useMapEvents({
+    moveend: () => {
+      const center = map.getCenter();
+      onChange({ lat: center.lat, lng: center.lng });
+    },
+  });
+  return null;
+}
+
+function ChangeView({ center }: { center: { lat: number; lng: number } }) {
+  const map = useMap();
+  React.useEffect(() => {
+    map.setView([center.lat, center.lng]);
+  }, [center, map]);
+  return null;
+}
 import { 
   User, 
   Phone, 
@@ -53,6 +91,8 @@ const formSchema = z.object({
   paymentMethod: z.string().default("CASH"),
   agentId: z.string().optional(),
   notes: z.string().optional(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
 });
 
 interface FormValues {
@@ -72,6 +112,8 @@ interface FormValues {
   paymentMethod: string;
   agentId?: string;
   notes?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
@@ -97,7 +139,9 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
       paymentStatus: "UNPAID",
       paymentMethod: "CASH",
       agentId: "",
-      notes: ""
+      notes: "",
+      latitude: null,
+      longitude: null
     } as any
   });
 
@@ -105,6 +149,10 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
   const price = watch("price");
   const deliveryFee = watch("deliveryFee");
   const quantity = watch("quantity");
+  const latitude = watch("latitude");
+  const longitude = watch("longitude");
+
+  const [mapCenter, setMapCenter] = React.useState<{ lat: number; lng: number }>({ lat: 47.9188, lng: 106.9176 }); // Ulaanbaatar center
 
   React.useEffect(() => {
     const p = parseFloat(String(price)) || 0;
@@ -138,6 +186,11 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
     setValue("addressText", addr.street);
     setValue("locationDetail", addr.description);
     setPrevAddresses([]);
+    if (addr.latitude && addr.longitude) {
+      setValue("latitude", addr.latitude);
+      setValue("longitude", addr.longitude);
+      setMapCenter({ lat: addr.latitude, lng: addr.longitude });
+    }
   };
 
   const onSubmit = async (values: any) => {
@@ -271,6 +324,58 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
               <div className="md:col-span-2 space-y-2">
                 <Label className="text-xs font-semibold">Байршлын тайлбар (Очих зам)</Label>
                 <Input {...register("locationDetail")} placeholder="Жишээ: Номин супермаркетын баруун талын байр" className="h-10 bg-[#f8fafc] border-slate-200" />
+              </div>
+
+              <div className="md:col-span-2 space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold flex items-center gap-2">
+                    <MapPin size={14} className="text-red-500" />
+                    Газрын зураг дээр тэмдэглэх
+                  </Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 text-[10px]"
+                    onClick={() => {
+                      if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition((pos) => {
+                          const { latitude, longitude } = pos.coords;
+                          setValue("latitude", latitude);
+                          setValue("longitude", longitude);
+                          setMapCenter({ lat: latitude, lng: longitude });
+                        });
+                      }
+                    }}
+                  >
+                    Миний байршил
+                  </Button>
+                </div>
+                
+                <div className="h-[300px] w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-100 relative z-0">
+                  <MapContainer
+                    center={[mapCenter.lat, mapCenter.lng]}
+                    zoom={15}
+                    style={{ height: "100%", width: "100%" }}
+                    className="z-0"
+                    zoomControl={false}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <ChangeView center={mapCenter} />
+                    <MapEvents onChange={(pos) => {
+                      setMapCenter(pos);
+                      setValue("latitude", pos.lat);
+                      setValue("longitude", pos.lng);
+                    }} />
+                  </MapContainer>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none mb-8 z-[400]">
+                     <MapPin size={32} className="text-red-600 drop-shadow-lg" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 italic">Газрын зургаа хөдөлгөж байршлаа голлуулна уу. Төв цэгт байгаа тэмдэг нь таны сонгосон байршил болно.</p>
               </div>
             </CardContent>
           </Card>
