@@ -248,23 +248,34 @@ app.get("/api/stats", async (req, res) => {
 });
 
 async function startServer() {
-  // Check DB connection (non-blocking)
-  prisma.$connect()
-    .then(() => console.log("Connected to Supabase successfully."))
-    .catch((err) => console.error("Database connection failed:", err));
+  // Start listening immediately
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
 
-  // Seed admin if not exists
-  const admin = await prisma.user.findUnique({ where: { email: "admin@delivery.mn" } });
-  if (!admin) {
-    await prisma.user.create({
-      data: {
-        email: "admin@delivery.mn",
-        password: "admin",
-        name: "Admin User",
+  // Background tasks
+  (async () => {
+    try {
+      // Check DB connection
+      await prisma.$connect();
+      console.log("Connected to Supabase successfully.");
+
+      // Seed admin if not exists
+      const admin = await prisma.user.findUnique({ where: { email: "admin@delivery.mn" } });
+      if (!admin) {
+        await prisma.user.create({
+          data: {
+            email: "admin@delivery.mn",
+            password: "admin",
+            name: "Admin User",
+          }
+        });
+        console.log("Admin user created: admin@delivery.mn / admin");
       }
-    });
-    console.log("Admin user created: admin@delivery.mn / admin");
-  }
+    } catch (err) {
+      console.error("Background startup tasks failed:", err);
+    }
+  })();
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -280,10 +291,6 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-  });
 }
 
 startServer();
