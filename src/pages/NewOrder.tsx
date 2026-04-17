@@ -84,7 +84,7 @@ const formSchema = z.object({
   locationDetail: z.string().optional(),
   productName: z.string().min(1, "Барааны нэр оруулна уу"),
   quantity: z.preprocess((val) => Number(val), z.number().min(1, "Тоо ширхэг оруулна уу")),
-  price: z.preprocess((val) => Number(val), z.number().min(1, "Үнэ оруулна уу")),
+  price: z.preprocess((val) => Number(val), z.number().default(0)),
   deliveryFee: z.preprocess((val) => Number(val), z.number().default(5000)),
   totalAmount: z.number(),
   paymentStatus: z.string().default("UNPAID"),
@@ -155,11 +155,9 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
   const [mapCenter, setMapCenter] = React.useState<{ lat: number; lng: number }>({ lat: 47.9188, lng: 106.9176 }); // Ulaanbaatar center
 
   React.useEffect(() => {
-    const p = parseFloat(String(price)) || 0;
     const f = parseFloat(String(deliveryFee)) || 0;
-    const q = parseInt(String(quantity)) || 0;
-    setValue("totalAmount", (p * q) + f);
-  }, [price, deliveryFee, quantity, setValue]);
+    setValue("totalAmount", f);
+  }, [deliveryFee, setValue]);
 
   React.useEffect(() => {
     fetch("/api/agents").then(res => res.json()).then(setAgents);
@@ -388,17 +386,13 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2 space-y-2">
+              <div className="md:col-span-3 space-y-2">
                 <Label className="text-xs font-semibold">Барааны нэр</Label>
                 <Input {...register("productName")} placeholder="Барааны нэр" className="h-10 bg-[#f8fafc] border-slate-200" />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold">Тоо ширхэг</Label>
                 <Input {...register("quantity")} type="number" className="h-10 bg-[#f8fafc] border-slate-200" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Үнэ (Нэгж)</Label>
-                <Input {...register("price")} type="number" className="h-10 bg-[#f8fafc] border-slate-200" />
               </div>
             </CardContent>
           </Card>
@@ -424,10 +418,6 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
               </div>
 
               <div className="pt-4 border-t border-white/10 space-y-3">
-                <div className="flex justify-between items-center text-xs text-slate-400">
-                  <span>Барааны дүн:</span>
-                  <span className="text-slate-200 font-medium">{(parseFloat(String(watch("price"))) * (parseInt(String(watch("quantity"))) || 0)).toLocaleString()} ₮</span>
-                </div>
                 <div className="flex justify-between items-center text-xs text-slate-400">
                   <span>Хүргэлт:</span>
                   <span className="text-slate-200 font-medium">{parseFloat(String(watch("deliveryFee"))).toLocaleString()} ₮</span>
