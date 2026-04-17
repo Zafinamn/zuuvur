@@ -27,6 +27,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import "leaflet/dist/leaflet.css";
 
 // Fix for default marker icons in Leaflet
@@ -116,7 +117,7 @@ interface FormValues {
   longitude?: number | null;
 }
 
-export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
+export default function NewOrder({ onSuccess, initialData, className }: { onSuccess: () => void, initialData?: any, className?: string }) {
   const [agents, setAgents] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [prevAddresses, setPrevAddresses] = React.useState<any[]>([]);
@@ -124,28 +125,57 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as any,
     defaultValues: {
-      receiverName: "",
-      phone: "",
-      secondaryPhone: "",
-      district: "",
-      khoroo: "",
-      addressText: "",
-      locationDetail: "",
-      productName: "",
-      quantity: 1,
-      price: 0,
-      deliveryFee: 5000,
-      totalAmount: 5000,
-      paymentStatus: "UNPAID",
-      paymentMethod: "CASH",
-      agentId: "",
-      notes: "",
-      latitude: null,
-      longitude: null
+      receiverName: initialData?.receiverName || "",
+      phone: initialData?.phone || "",
+      secondaryPhone: initialData?.secondaryPhone || "",
+      district: initialData?.district || "",
+      khoroo: initialData?.khoroo || "",
+      addressText: initialData?.addressText || "",
+      locationDetail: initialData?.locationDetail || "",
+      productName: initialData?.productName || "",
+      quantity: initialData?.quantity || 1,
+      price: initialData?.price || 0,
+      deliveryFee: initialData?.deliveryFee || 5000,
+      totalAmount: initialData?.totalAmount || 5000,
+      paymentStatus: initialData?.paymentStatus || "UNPAID",
+      paymentMethod: initialData?.paymentMethod || "CASH",
+      agentId: initialData?.agentId?.toString() || "",
+      notes: initialData?.notes || "",
+      latitude: initialData?.latitude || null,
+      longitude: initialData?.longitude || null
     } as any
   });
 
-  const { watch, setValue, register } = form;
+  const { watch, setValue, register, reset } = form;
+
+  React.useEffect(() => {
+    if (initialData) {
+      reset({
+        receiverName: initialData.receiverName,
+        phone: initialData.phone,
+        secondaryPhone: initialData.secondaryPhone || "",
+        district: initialData.district,
+        khoroo: initialData.khoroo,
+        addressText: initialData.addressText,
+        locationDetail: initialData.locationDetail || "",
+        productName: initialData.productName,
+        quantity: initialData.quantity,
+        price: initialData.price,
+        deliveryFee: initialData.deliveryFee,
+        totalAmount: initialData.totalAmount,
+        paymentStatus: initialData.paymentStatus,
+        paymentMethod: initialData.paymentMethod,
+        agentId: initialData.agentId?.toString() || "",
+        notes: initialData.notes || "",
+        latitude: initialData.latitude,
+        longitude: initialData.longitude
+      });
+      if (initialData.latitude && initialData.longitude) {
+        setMapCenter({ lat: initialData.latitude, lng: initialData.longitude });
+      }
+    }
+  }, [initialData, reset]);
+
   const price = watch("price");
   const deliveryFee = watch("deliveryFee");
   const quantity = watch("quantity");
@@ -194,13 +224,16 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
   const onSubmit = async (values: any) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/orders", {
-        method: "POST",
+      const url = initialData ? `/api/orders/${initialData.id}` : "/api/orders";
+      const method = initialData ? "PATCH" : "POST";
+      
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
       if (res.ok) {
-        toast.success("Захиалга амжилттай бүртгэгдлээ");
+        toast.success(initialData ? "Захиалга амжилттай шинэчлэгдлээ" : "Захиалга амжилттай бүртгэгдлээ");
         onSuccess();
       } else {
         toast.error("Алдаа гарлаа");
@@ -213,13 +246,15 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Шинэ захиалга</h1>
-          <p className="text-sm text-slate-500 mt-1">Хүргэлтийн мэдээллийг үнэн зөв оруулна уу.</p>
+    <div className={cn("max-w-5xl mx-auto space-y-6 pb-20", className)}>
+      {!initialData && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Шинэ захиалга</h1>
+            <p className="text-sm text-slate-500 mt-1">Хүргэлтийн мэдээллийг үнэн зөв оруулна уу.</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <form onSubmit={form.handleSubmit(onSubmit as any)} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Customer Info */}
@@ -437,7 +472,6 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
                   <SelectContent>
                     <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
                     <SelectItem value="PAID">Төлсөн</SelectItem>
-                    <SelectItem value="PARTIAL">Хэсэгчлэн</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -451,8 +485,6 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
                   <SelectContent>
                     <SelectItem value="CASH">Бэлэн</SelectItem>
                     <SelectItem value="BANK">Дансаар</SelectItem>
-                    <SelectItem value="QPAY">QPay</SelectItem>
-                    <SelectItem value="TRANSFER">Шилжүүлэг</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -489,7 +521,7 @@ export default function NewOrder({ onSuccess }: { onSuccess: () => void }) {
                 className="w-full bg-[#2563eb] hover:bg-[#1e40af] font-bold h-11 rounded-lg text-sm shadow-lg shadow-blue-500/20"
                 disabled={loading}
               >
-                {loading ? "Бүртгэж байна..." : "БҮРТГЭЛ ХАДГАЛАХ"}
+                {loading ? "Хадгалж байна..." : (initialData ? "ӨӨРЧЛӨЛТ ХАДГАЛАХ" : "БҮРТГЭЛ ХАДГАЛАХ")}
               </Button>
             </CardContent>
           </Card>

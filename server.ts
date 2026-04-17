@@ -35,7 +35,7 @@ app.get("/api/customers/search", async (req, res) => {
 });
 
 app.get("/api/orders", async (req, res) => {
-  const { status, paymentStatus, phone, q, startDate, endDate } = req.query;
+  const { status, paymentStatus, phone, q, startDate, endDate, limit } = req.query;
   
   let where: any = {};
   if (status) where.deliveryStatus = String(status);
@@ -61,6 +61,7 @@ app.get("/api/orders", async (req, res) => {
       where,
       orderBy: { createdAt: "desc" },
       include: { agent: true },
+      take: limit ? parseInt(String(limit)) : undefined,
     });
     res.json(orders);
   } catch (error) {
@@ -112,7 +113,34 @@ app.post("/api/orders", async (req, res) => {
     }
 
     // 3. Create order
-    const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100)}`;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}${month}${day}`;
+    
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastOrderToday = await prisma.order.findFirst({
+      where: {
+        orderNumber: {
+          startsWith: `ORD-${dateStr}-`
+        }
+      },
+      orderBy: {
+        orderNumber: "desc",
+      },
+    });
+
+    let sequence = "001";
+    if (lastOrderToday) {
+      const parts = lastOrderToday.orderNumber.split("-");
+      const lastSeq = parseInt(parts[2]);
+      if (!isNaN(lastSeq)) {
+        sequence = String(lastSeq + 1).padStart(3, '0');
+      }
+    }
+
+    const orderNumber = `ORD-${dateStr}-${sequence}`;
     
     const order = await prisma.order.create({
       data: {
@@ -165,9 +193,31 @@ app.patch("/api/orders/:id", async (req, res) => {
     const oldOrder = await prisma.order.findUnique({ where: { id: parseInt(id) } });
     if (!oldOrder) return res.status(404).json({ error: "Order not found" });
 
+    // Sanitize and parse data for Prisma
+    const updateData: any = {};
+    const stringFields = [
+      "receiverName", "phone", "secondaryPhone", "district", "khoroo", 
+      "addressText", "locationDetail", "productName", "paymentStatus", 
+      "paymentMethod", "notes", "deliveryStatus"
+    ];
+    
+    stringFields.forEach(f => {
+      if (data[f] !== undefined) updateData[f] = data[f];
+    });
+
+    if (data.quantity !== undefined) updateData.quantity = parseInt(data.quantity) || 0;
+    if (data.price !== undefined) updateData.price = parseFloat(data.price) || 0;
+    if (data.deliveryFee !== undefined) updateData.deliveryFee = parseFloat(data.deliveryFee) || 0;
+    if (data.totalAmount !== undefined) updateData.totalAmount = parseFloat(data.totalAmount) || 0;
+    if (data.latitude !== undefined) updateData.latitude = data.latitude ? parseFloat(data.latitude) : null;
+    if (data.longitude !== undefined) updateData.longitude = data.longitude ? parseFloat(data.longitude) : null;
+    if (data.agentId !== undefined) {
+      updateData.agentId = data.agentId ? parseInt(data.agentId) : null;
+    }
+
     const order = await prisma.order.update({
       where: { id: parseInt(id) },
-      data,
+      data: updateData,
     });
 
     // Logging
@@ -197,6 +247,19 @@ app.patch("/api/orders/:id", async (req, res) => {
   } catch (error: any) {
     console.error("Order update error:", error);
     res.status(500).json({ error: "Update failed" });
+  }
+});
+
+app.delete("/api/orders/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Delete logs first due to relations
+    await prisma.statusLog.deleteMany({ where: { orderId: parseInt(id) } });
+    await prisma.order.delete({ where: { id: parseInt(id) } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Order delete error:", error);
+    res.status(500).json({ error: "Delete failed" });
   }
 });
 
@@ -231,7 +294,15 @@ app.get("/api/stats", async (req, res) => {
   todayStart.setHours(0, 0, 0, 0);
 
   try {
-    const [totalToday, paidToday, unpaidToday, revenueToday, totalDelivered] = await Promise.all([
+    const [
+      totalToday, 
+      paidToday, 
+      unpaidToday, 
+      revenueToday, 
+      totalDelivered,
+      totalAllTime,
+      revenueAllTime
+    ] = await Promise.all([
       prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
       prisma.order.count({ where: { createdAt: { gte: todayStart }, paymentStatus: "PAID" } }),
       prisma.order.count({ where: { createdAt: { gte: todayStart }, paymentStatus: "UNPAID" } }),
@@ -240,6 +311,11 @@ app.get("/api/stats", async (req, res) => {
         _sum: { totalAmount: true }
       }),
       prisma.order.count({ where: { createdAt: { gte: todayStart }, deliveryStatus: "DELIVERED" } }),
+      prisma.order.count(),
+      prisma.order.aggregate({
+        where: { paymentStatus: "PAID" },
+        _sum: { totalAmount: true }
+      }),
     ]);
 
     res.json({
@@ -247,7 +323,9 @@ app.get("/api/stats", async (req, res) => {
       paidToday,
       unpaidToday,
       revenueToday: revenueToday._sum.totalAmount || 0,
-      totalDelivered
+      totalDelivered,
+      totalAllTime,
+      revenueAllTime: revenueAllTime._sum.totalAmount || 0
     });
   } catch (error) {
     console.error("Stats fetch error:", error);

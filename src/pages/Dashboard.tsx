@@ -19,20 +19,39 @@ interface Stats {
   unpaidToday: number;
   revenueToday: number;
   totalDelivered: number;
+  totalAllTime: number;
+  revenueAllTime: number;
 }
 
 export default function Dashboard() {
   const [stats, setStats] = React.useState<Stats | null>(null);
+  const [recentOrders, setRecentOrders] = React.useState<any[]>([]);
+  const [topAgents, setTopAgents] = React.useState<any[]>([]);
 
   React.useEffect(() => {
+    // Fetch Stats
     fetch("/api/stats")
       .then(res => res.json())
       .then(data => setStats(data));
+
+    // Fetch Recent Orders (limit to 5)
+    fetch("/api/orders?limit=5")
+      .then(res => res.json())
+      .then(data => setRecentOrders(data.slice(0, 5)));
+
+    // Fetch Agents and sort by delivered orders
+    fetch("/api/agents")
+      .then(res => res.json())
+      .then(data => {
+        const sorted = data.sort((a: any, b: any) => b._count.orders - a._count.orders);
+        setTopAgents(sorted.slice(0, 5));
+      });
   }, []);
 
   const StatCard = ({ 
     title, 
     value, 
+    description,
     icon: Icon, 
     color, 
     delay,
@@ -40,6 +59,7 @@ export default function Dashboard() {
   }: { 
     title: string; 
     value: string | number; 
+    description?: string;
     icon: any; 
     color: string;
     delay: number;
@@ -53,9 +73,10 @@ export default function Dashboard() {
       <Card className="border border-[var(--border)] shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">{title}</p>
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{title}</p>
               <h3 className={`text-2xl font-extrabold ${valueColor || "text-slate-900"}`}>{value}</h3>
+              {description && <p className="text-xs font-bold text-slate-600">{description}</p>}
             </div>
             <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
               <Icon size={20} />
@@ -75,11 +96,20 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard 
-          title="Өнөөдрийн нийт" 
-          value={stats?.totalToday ?? "..."} 
+          title="Захиалга (Өнөөдөр)" 
+          value={stats?.totalToday ?? "0"} 
+          description={`Нийт: ${stats?.totalAllTime ?? "0"}`}
           icon={ShoppingBag} 
           color="bg-blue-500"
           delay={0}
+        />
+        <StatCard 
+          title="Орлого (Өнөөдөр)" 
+          value={`${stats?.revenueToday?.toLocaleString() ?? "0"} ₮`} 
+          description={`Нийт: ${stats?.revenueAllTime?.toLocaleString() ?? "0"} ₮`}
+          icon={DollarSign} 
+          color="bg-indigo-500"
+          delay={0.1}
         />
         <StatCard 
           title="Төлөгдсөн" 
@@ -87,7 +117,7 @@ export default function Dashboard() {
           icon={CheckCircle} 
           color="bg-green-500"
           valueColor="text-[#22c55e]"
-          delay={0.1}
+          delay={0.2}
         />
         <StatCard 
           title="Төлөгдөөгүй" 
@@ -95,13 +125,6 @@ export default function Dashboard() {
           icon={Clock} 
           color="bg-red-500"
           valueColor="text-[#ef4444]"
-          delay={0.2}
-        />
-        <StatCard 
-          title="Нийт орлого" 
-          value={`${stats?.revenueToday?.toLocaleString() ?? "..."} ₮`} 
-          icon={DollarSign} 
-          color="bg-indigo-500"
           delay={0.3}
         />
       </div>
@@ -115,10 +138,34 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-10">
-              <PackageCheck className="mx-auto text-slate-200 mb-3" size={48} />
-              <p className="text-slate-400 text-sm italic">Шинэ захиалгууд энд харагдана...</p>
-            </div>
+            {recentOrders.length > 0 ? (
+              <div className="space-y-4">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center border border-slate-100 shadow-sm">
+                        <ShoppingBag className="text-blue-500" size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{order.receiverName}</p>
+                        <p className="text-[10px] text-slate-400">{order.orderNumber} • {new Date(order.createdAt).toLocaleTimeString()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-slate-900">{order.totalAmount.toLocaleString()}₮</p>
+                      <p className={`text-[10px] font-bold ${order.deliveryStatus === 'DELIVERED' ? 'text-green-500' : 'text-blue-500'}`}>
+                        {order.deliveryStatus === 'DELIVERED' ? 'Хүргэгдсэн' : 'Хүлээгдэж буй'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <PackageCheck className="mx-auto text-slate-200 mb-3" size={48} />
+                <p className="text-slate-400 text-sm italic">Шинэ захиалгууд энд харагдана...</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -130,10 +177,32 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-             <div className="text-center py-10">
-              <Users className="mx-auto text-slate-200 mb-3" size={48} />
-              <p className="text-slate-400 text-sm italic">Хүргэгчдийн мэдээлэл энд харагдана...</p>
-            </div>
+            {topAgents.length > 0 ? (
+              <div className="space-y-4">
+                {topAgents.map((agent) => (
+                  <div key={agent.id} className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-sm">
+                        {agent.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{agent.name}</p>
+                        <p className="text-[10px] text-slate-400">{agent.phone}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-extrabold text-[#22c55e]">{agent._count.orders}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Хүргэлт</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <Users className="mx-auto text-slate-200 mb-3" size={48} />
+                <p className="text-slate-400 text-sm italic">Хүргэгчдийн мэдээлэл энд харагдана...</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

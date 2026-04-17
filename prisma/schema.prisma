@@ -67,8 +67,8 @@ model Order {
   price          Float
   deliveryFee    Float
   totalAmount    Float
-  paymentStatus  String   @default("UNPAID") // PAID, UNPAID, PARTIAL
-  paymentMethod  String   @default("CASH") // CASH, BANK, QPAY, TRANSFER
+  paymentStatus  String   @default("UNPAID") // PAID, UNPAID
+  paymentMethod  String   @default("CASH") // CASH, BANK
   deliveryStatus String   @default("PENDING") // PENDING, ON_DELIVERY, DELIVERED, CANCELLED
   notes          String?
   paidAt         DateTime?

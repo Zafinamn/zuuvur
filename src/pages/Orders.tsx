@@ -14,8 +14,9 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { 
   Select, 
   SelectContent, 
@@ -33,7 +34,9 @@ import {
   Truck,
   MapPin,
   Calendar as CalendarIcon,
-  DollarSign
+  DollarSign,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -43,10 +46,25 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import NewOrder from "./NewOrder";
 
 export default function Orders() {
   const [orders, setOrders] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [editingOrder, setEditingOrder] = React.useState<any | null>(null);
   const [filter, setFilter] = React.useState({
     q: "",
     status: "all",
@@ -92,6 +110,22 @@ export default function Orders() {
     }
   };
 
+  const deleteOrder = async (id: number) => {
+    if (!confirm("Та энэ захиалгыг устгахдаа итгэлтэй байна уу?")) return;
+    
+    try {
+      const res = await fetch(`/api/orders/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Захиалга устгагдлаа");
+        fetchOrders();
+      } else {
+        toast.error("Устгахад алдаа гарлаа");
+      }
+    } catch (e) {
+      toast.error("Сүлжээний алдаа");
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING": return <Badge variant="outline" className="bg-[#f1f5f9] text-[#64748b] border-none px-3 py-0.5 rounded-full text-[10px]">Хүлээгдэж буй</Badge>;
@@ -106,7 +140,6 @@ export default function Orders() {
     switch (status) {
       case "PAID": return <Badge variant="outline" className="bg-[#dcfce7] text-[#166534] border-none px-3 py-0.5 rounded-full text-[10px]">Төлсөн</Badge>;
       case "UNPAID": return <Badge variant="outline" className="bg-[#fee2e2] text-[#991b1b] border-none px-3 py-0.5 rounded-full text-[10px]">Төлөөгүй</Badge>;
-      case "PARTIAL": return <Badge variant="outline" className="bg-[#fef9c3] text-[#854d0e] border-none px-3 py-0.5 rounded-full text-[10px]">Хэсэгчлэн</Badge>;
       default: return <Badge>{status}</Badge>;
     }
   };
@@ -163,7 +196,6 @@ export default function Orders() {
                 <SelectItem value="all">Бүх төлбөр</SelectItem>
                 <SelectItem value="PAID">Төлсөн</SelectItem>
                 <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
-                <SelectItem value="PARTIAL">Хэсэгчлэн</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -224,7 +256,6 @@ export default function Orders() {
                         <SelectContent>
                           <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
                           <SelectItem value="PAID">Төлсөн</SelectItem>
-                          <SelectItem value="PARTIAL">Хэсэгчлэн</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -246,9 +277,26 @@ export default function Orders() {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-900">
-                          <MoreHorizontal size={14} />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-7 w-7 text-slate-400 hover:text-slate-900")}>
+                            <MoreHorizontal size={14} />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                            <DropdownMenuItem 
+                              className="text-xs cursor-pointer flex items-center gap-2"
+                              onClick={() => setEditingOrder(order)}
+                            >
+                              <Pencil size={14} /> Засварлах
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-xs cursor-pointer text-red-600 focus:text-red-600 flex items-center gap-2"
+                              onClick={() => deleteOrder(order.id)}
+                            >
+                              <Trash2 size={14} /> Устгах
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -258,6 +306,26 @@ export default function Orders() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)}>
+        <DialogContent className="sm:max-w-[95vw] lg:max-w-6xl max-h-[90vh] overflow-y-auto p-0 border-none bg-slate-50">
+          <DialogHeader className="p-6 bg-white border-b sticky top-0 z-10">
+            <DialogTitle className="text-xl font-bold">Захиалга засах</DialogTitle>
+          </DialogHeader>
+          <div className="p-6">
+            {editingOrder && (
+              <NewOrder 
+                className="max-w-full pb-0 mt-0"
+                initialData={editingOrder} 
+                onSuccess={() => {
+                  setEditingOrder(null);
+                  fetchOrders();
+                }} 
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
