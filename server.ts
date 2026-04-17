@@ -255,9 +255,16 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
+export default app;
+
 async function startServer() {
+  if (process.env.VERCEL) {
+    console.log("Running in Vercel environment");
+    return;
+  }
+
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -266,27 +273,25 @@ async function startServer() {
     app.use(vite.middlewares);
   } else if (process.env.NODE_ENV === "production") {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res, next) => {
-      if (req.url.startsWith("/api")) return next();
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res, next) => {
+        if (req.url.startsWith("/api")) return next();
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
   }
 
   // Start listening only if not on Vercel
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running at http://localhost:${PORT}`);
-    });
-  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
 
-  // Background tasks
+  // Background tasks - only for persistent servers
   (async () => {
     try {
-      if (!process.env.VERCEL) {
-        await prisma.$connect();
-        console.log("Connected to Supabase successfully.");
-      }
+      await prisma.$connect();
+      console.log("Connected to Supabase successfully.");
       
       const admin = await prisma.user.findUnique({ where: { email: "admin@delivery.mn" } });
       if (!admin) {
@@ -305,4 +310,6 @@ async function startServer() {
   })();
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
