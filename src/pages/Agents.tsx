@@ -69,7 +69,8 @@ export default function Agents() {
         toast.error(`Алдаа гарлаа: ${err.error || "Үл мэдэгдэх алдаа"}`);
       }
     } catch (e) {
-      toast.error("Сүлжээний алдаа гарлаа");
+      console.error("Fetch catch error:", e);
+      toast.error(`Сүлжээний алдаа гарлаа: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 

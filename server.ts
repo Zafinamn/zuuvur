@@ -248,13 +248,10 @@ app.get("/api/stats", async (req, res) => {
 });
 
 async function startServer() {
-  // Check DB connection
-  try {
-    await prisma.$connect();
-    console.log("Connected to Supabase successfully.");
-  } catch (err) {
-    console.error("Database connection failed:", err);
-  }
+  // Check DB connection (non-blocking)
+  prisma.$connect()
+    .then(() => console.log("Connected to Supabase successfully."))
+    .catch((err) => console.error("Database connection failed:", err));
 
   // Seed admin if not exists
   const admin = await prisma.user.findUnique({ where: { email: "admin@delivery.mn" } });
