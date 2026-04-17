@@ -1,6 +1,5 @@
 import "dotenv/config";
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { PrismaClient } from "@prisma/client";
 import path from "path";
 
@@ -10,10 +9,9 @@ const prisma = new PrismaClient();
 export const app = express();
 app.use(express.json());
 
-// Request logger to file
+// Request logger 
 app.use((req, res, next) => {
-  const log = `${new Date().toISOString()} - ${req.method} ${req.url}\n`;
-  fs.appendFileSync("access.log", log);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
@@ -259,30 +257,37 @@ app.get("/api/stats", async (req, res) => {
 
 async function startServer() {
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (process.env.NODE_ENV === "production") {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", (req, res, next) => {
+      if (req.url.startsWith("/api")) return next();
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  // Start listening
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-  });
+  // Start listening only if not on Vercel
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+    });
+  }
 
   // Background tasks
   (async () => {
     try {
-      await prisma.$connect();
-      console.log("Connected to Supabase successfully.");
+      if (!process.env.VERCEL) {
+        await prisma.$connect();
+        console.log("Connected to Supabase successfully.");
+      }
+      
       const admin = await prisma.user.findUnique({ where: { email: "admin@delivery.mn" } });
       if (!admin) {
         await prisma.user.create({
