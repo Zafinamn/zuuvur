@@ -21,6 +21,7 @@ app.get("/api/customers/search", async (req, res) => {
     });
     res.json(customer);
   } catch (error) {
+    console.error("Customer search error:", error);
     res.status(500).json({ error: "Search failed" });
   }
 });
@@ -55,6 +56,7 @@ app.get("/api/orders", async (req, res) => {
     });
     res.json(orders);
   } catch (error) {
+    console.error("Orders fetch error:", error);
     res.status(500).json({ error: "Fetch failed" });
   }
 });
@@ -184,7 +186,8 @@ app.patch("/api/orders/:id", async (req, res) => {
     }
 
     res.json(order);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Order update error:", error);
     res.status(500).json({ error: "Update failed" });
   }
 });
@@ -200,6 +203,7 @@ app.get("/api/agents", async (req, res) => {
     });
     res.json(agents);
   } catch (error) {
+    console.error("Agents fetch error:", error);
     res.status(500).json({ error: "Fetch failed" });
   }
 });
@@ -209,6 +213,7 @@ app.post("/api/agents", async (req, res) => {
     const agent = await prisma.deliveryAgent.create({ data: req.body });
     res.json(agent);
   } catch (error) {
+    console.error("Agent creation error:", error);
     res.status(500).json({ error: "Create failed" });
   }
 });
@@ -237,7 +242,8 @@ app.get("/api/stats", async (req, res) => {
       totalDelivered
     });
   } catch (error) {
-    res.status(500).json({ error: "Stats failed" });
+    console.error("Stats fetch error:", error);
+    res.status(500).json({ error: "Stats failed", details: error instanceof Error ? error.message : String(error) });
   }
 });
 
