@@ -64,9 +64,12 @@ export default function Agents() {
         toast.success("Хүргэгч амжилттай бүртгэгдлээ");
         setOpen(false);
         fetchAgents();
+      } else {
+        const err = await res.json();
+        toast.error(`Алдаа гарлаа: ${err.error || "Үл мэдэгдэх алдаа"}`);
       }
     } catch (e) {
-      toast.error("Алдаа гарлаа");
+      toast.error("Сүлжээний алдаа гарлаа");
     }
   };
 
