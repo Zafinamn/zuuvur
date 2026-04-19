@@ -82,7 +82,13 @@ export default function Orders() {
       
       const res = await fetch(url);
       const data = await res.json();
-      setOrders(data);
+      if (Array.isArray(data)) {
+        setOrders(data);
+      } else {
+        console.error("Orders fetch non-array:", data);
+        setOrders([]);
+        if (data.error) toast.error(`Алдаа: ${data.error}`);
+      }
     } catch (e) {
       toast.error("Мэдээлэл татахад алдаа гарлаа");
     } finally {
@@ -146,58 +152,60 @@ export default function Orders() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Захиалгууд</h1>
-          <p className="text-sm text-slate-500 mt-1">Системд бүртгэлтэй нийт захиалгын жагсаалт.</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">Захиалгууд</h1>
+          <p className="text-xs lg:text-sm text-slate-500 mt-1">Системд бүртгэлтэй нийт захиалгын жагсаалт.</p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="rounded-lg h-10 px-4" onClick={() => setFilter({ q: "", status: "all", paymentStatus: "UNPAID", date: undefined })}>
-            <DollarSign size={16} className="mr-2" /> Төлөөгүй
+          <Button variant="outline" size="sm" className="rounded-lg h-9 lg:h-10 px-3 lg:px-4" onClick={() => setFilter({ q: "", status: "all", paymentStatus: "UNPAID", date: undefined })}>
+            <DollarSign size={14} className="mr-2" /> Төлөөгүй
           </Button>
-          <Button variant="outline" className="rounded-lg h-10 px-4" onClick={() => fetchOrders()}>
+          <Button variant="outline" size="sm" className="rounded-lg h-9 lg:h-10 px-3 lg:px-4 ml-auto" onClick={() => fetchOrders()}>
             Шинэчлэх
           </Button>
         </div>
       </div>
 
       <Card className="border border-[var(--border)] shadow-sm overflow-hidden rounded-xl">
-        <CardHeader className="bg-white border-b border-slate-100 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[300px]">
+        <CardHeader className="bg-white border-b border-slate-100 p-3 lg:p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
               <Input 
-                placeholder="Захиалга, утасны дугаараар хайх..." 
+                placeholder="Хайх..." 
                 className="pl-9 h-10 bg-[#f8fafc] border-slate-200 rounded-lg focus-visible:ring-1" 
                 value={filter.q}
                 onChange={(e) => setFilter({ ...filter, q: e.target.value })}
               />
             </div>
 
-            <Select value={filter.status} onValueChange={(v) => setFilter({ ...filter, status: v })}>
-              <SelectTrigger className="w-[160px] h-10 rounded-lg bg-[#f8fafc] border-slate-200">
-                <SelectValue placeholder="Хүргэлт" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Бүх хүргэлт</SelectItem>
-                <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
-                <SelectItem value="ON_DELIVERY">Хүргэлтэнд гарсан</SelectItem>
-                <SelectItem value="DELIVERED">Хүргэгдсэн</SelectItem>
-                <SelectItem value="CANCELLED">Цуцлагдсан</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={filter.status} onValueChange={(v) => setFilter({ ...filter, status: v })}>
+                <SelectTrigger className="flex-1 lg:w-[160px] h-10 rounded-lg bg-[#f8fafc] border-slate-200">
+                  <SelectValue placeholder="Хүргэлт" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Бүх хүргэлт</SelectItem>
+                  <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
+                  <SelectItem value="ON_DELIVERY">Гарсан</SelectItem>
+                  <SelectItem value="DELIVERED">Хүргэгдсэн</SelectItem>
+                  <SelectItem value="CANCELLED">Цуцлагдсан</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select value={filter.paymentStatus} onValueChange={(v) => setFilter({ ...filter, paymentStatus: v })}>
-              <SelectTrigger className="w-[160px] h-10 rounded-lg bg-[#f8fafc] border-slate-200">
-                <SelectValue placeholder="Төлбөр" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Бүх төлбөр</SelectItem>
-                <SelectItem value="PAID">Төлсөн</SelectItem>
-                <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={filter.paymentStatus} onValueChange={(v) => setFilter({ ...filter, paymentStatus: v })}>
+                <SelectTrigger className="flex-1 lg:w-[160px] h-10 rounded-lg bg-[#f8fafc] border-slate-200">
+                  <SelectValue placeholder="Төлбөр" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Бүх төлбөр</SelectItem>
+                  <SelectItem value="PAID">Төлсөн</SelectItem>
+                  <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">

@@ -37,14 +37,34 @@ export default function Dashboard() {
     // Fetch Recent Orders (limit to 5)
     fetch("/api/orders?limit=5")
       .then(res => res.json())
-      .then(data => setRecentOrders(data.slice(0, 5)));
+      .then(data => {
+        if (Array.isArray(data)) {
+          setRecentOrders(data.slice(0, 5));
+        } else {
+          console.error("Orders API returned non-array:", data);
+          setRecentOrders([]);
+        }
+      })
+      .catch(err => {
+        console.error("Orders fetch failed:", err);
+        setRecentOrders([]);
+      });
 
     // Fetch Agents and sort by delivered orders
     fetch("/api/agents")
       .then(res => res.json())
       .then(data => {
-        const sorted = data.sort((a: any, b: any) => b._count.orders - a._count.orders);
-        setTopAgents(sorted.slice(0, 5));
+        if (Array.isArray(data)) {
+          const sorted = data.sort((a: any, b: any) => (b._count?.orders || 0) - (a._count?.orders || 0));
+          setTopAgents(sorted.slice(0, 5));
+        } else {
+          console.error("Agents API returned non-array:", data);
+          setTopAgents([]);
+        }
+      })
+      .catch(err => {
+        console.error("Agents fetch failed:", err);
+        setTopAgents([]);
       });
   }, []);
 
@@ -73,10 +93,10 @@ export default function Dashboard() {
       <Card className="border border-[var(--border)] shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{title}</p>
-              <h3 className={`text-2xl font-extrabold ${valueColor || "text-slate-900"}`}>{value}</h3>
-              {description && <p className="text-xs font-bold text-slate-600">{description}</p>}
+            <div className="space-y-0.5 lg:space-y-1">
+              <p className="text-[9px] lg:text-[11px] font-bold uppercase tracking-wider text-slate-400">{title}</p>
+              <h3 className={`text-lg lg:text-2xl font-extrabold ${valueColor || "text-slate-900"}`}>{value}</h3>
+              {description && <p className="text-[10px] lg:text-xs font-bold text-slate-600">{description}</p>}
             </div>
             <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
               <Icon size={20} />
@@ -88,13 +108,13 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6 lg:space-y-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Хянах самбар</h1>
-        <p className="text-sm text-slate-500 mt-1">Системийн өнөөдрийн үйл ажиллагааны статистик мэдээлэл.</p>
+        <h1 className="text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">Хянах самбар</h1>
+        <p className="text-xs lg:text-sm text-slate-500 mt-1">Системийн өнөөдрийн үйл ажиллагааны статистик мэдээлэл.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5">
         <StatCard 
           title="Захиалга (Өнөөдөр)" 
           value={stats?.totalToday ?? "0"} 
@@ -105,15 +125,15 @@ export default function Dashboard() {
         />
         <StatCard 
           title="Орлого (Өнөөдөр)" 
-          value={`${stats?.revenueToday?.toLocaleString() ?? "0"} ₮`} 
-          description={`Нийт: ${stats?.revenueAllTime?.toLocaleString() ?? "0"} ₮`}
+          value={stats?.revenueToday ? stats.revenueToday.toLocaleString() + ' ₮' : "0 ₮"} 
+          description={`Нийт: ${stats?.revenueAllTime ? stats.revenueAllTime.toLocaleString() + ' ₮' : "0 ₮"}`}
           icon={DollarSign} 
           color="bg-indigo-500"
           delay={0.1}
         />
         <StatCard 
           title="Төлөгдсөн" 
-          value={stats?.paidToday ?? "..."} 
+          value={stats?.paidToday ?? "0"} 
           icon={CheckCircle} 
           color="bg-green-500"
           valueColor="text-[#22c55e]"
@@ -121,7 +141,7 @@ export default function Dashboard() {
         />
         <StatCard 
           title="Төлөгдөөгүй" 
-          value={stats?.unpaidToday ?? "..."} 
+          value={stats?.unpaidToday ?? "0"} 
           icon={Clock} 
           color="bg-red-500"
           valueColor="text-[#ef4444]"

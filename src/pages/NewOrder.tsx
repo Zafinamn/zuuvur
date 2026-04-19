@@ -260,13 +260,15 @@ export default function NewOrder({ onSuccess, initialData, className }: { onSucc
         {/* Customer Info */}
         <div className="lg:col-span-2 space-y-6">
           {prevAddresses.length > 0 && (
-            <div className="flex gap-3 bg-[#eff6ff] p-4 rounded-xl border border-dashed border-[#2563eb] items-center">
-              <div className="w-2 h-2 rounded-full bg-[#2563eb] animate-pulse"></div>
-              <strong className="text-sm text-[#1e293b]">Дугаар хайлт:</strong>
+            <div className="flex flex-col sm:flex-row gap-3 bg-[#eff6ff] p-4 rounded-xl border border-dashed border-[#2563eb] sm:items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#2563eb] animate-pulse"></div>
+                <strong className="text-sm text-[#1e293b]">Дугаар хайлт:</strong>
+              </div>
               <span className="text-xs text-slate-600">
                 {watch("phone")}-аар олдсон {prevAddresses.length} хаяг байна.
               </span>
-              <div className="ml-auto flex gap-2">
+              <div className="sm:ml-auto flex gap-2">
                 {prevAddresses.slice(0, 1).map((addr, i) => (
                   <Button 
                     key={i}

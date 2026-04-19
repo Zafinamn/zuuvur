@@ -41,7 +41,12 @@ export default function Agents() {
         throw new Error(`HTTP ${res.status}: ${text.slice(0, 50)}`);
       }
       const data = await res.json();
-      setAgents(data);
+      if (Array.isArray(data)) {
+        setAgents(data);
+      } else {
+        console.error("Agents fetch non-array:", data);
+        setAgents([]);
+      }
     } catch (e) {
       console.error("Fetch agents error:", e);
       toast.error(`Мэдээлэл татахад алдаа гарлаа: ${e instanceof Error ? e.message : ""}`);
@@ -88,16 +93,16 @@ export default function Agents() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Хүргэгч нар</h1>
-          <p className="text-sm text-slate-500 mt-1">Системийн бүх хүргэгчдийн жагсаалт.</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">Хүргэгч нар</h1>
+          <p className="text-xs lg:text-sm text-slate-500 mt-1">Системийн бүх хүргэгчдийн жагсаалт.</p>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger
             render={
-              <Button className="bg-[#2563eb] hover:bg-[#1e40af] rounded-lg h-10 shadow-lg shadow-blue-500/20 px-5">
+              <Button className="bg-[#2563eb] hover:bg-[#1e40af] rounded-lg h-10 shadow-lg shadow-blue-500/20 px-5 w-full sm:w-auto">
                 <Plus size={18} className="mr-2" /> Хүргэгч нэмэх
               </Button>
             }

@@ -30,6 +30,12 @@ app.get("/api/customers/search", async (req, res) => {
     res.json(customer);
   } catch (error) {
     console.error("Customer search error:", error);
+    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
+      return res.status(500).json({ 
+        error: "Өгөгдлийн сангийн холболт (DATABASE_URL) тохируулаагүй байна.",
+        details: "Settings > Secrets хэсэгт тохируулна уу."
+      });
+    }
     res.status(500).json({ error: "Search failed" });
   }
 });
@@ -66,6 +72,12 @@ app.get("/api/orders", async (req, res) => {
     res.json(orders);
   } catch (error) {
     console.error("Orders fetch error:", error);
+    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
+      return res.status(500).json({ 
+        error: "Өгөгдлийн сангийн холболтын тохиргоо (DATABASE_URL) дутуу байна.",
+        details: "AI Studio-ийн Settings > Secrets хэсэгт DATABASE_URL-ийг тохируулна уу."
+      });
+    }
     res.status(500).json({ error: "Fetch failed" });
   }
 });
@@ -275,6 +287,12 @@ app.get("/api/agents", async (req, res) => {
     res.json(agents);
   } catch (error) {
     console.error("Agents fetch error:", error);
+    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
+      return res.status(500).json({ 
+        error: "Өгөгдлийн сангийн холболт (DATABASE_URL) тохируулаагүй байна.",
+        details: "Settings > Secrets хэсэгт тохируулна уу."
+      });
+    }
     res.status(500).json({ error: "Fetch failed" });
   }
 });
