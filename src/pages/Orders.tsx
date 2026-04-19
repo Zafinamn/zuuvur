@@ -14,6 +14,7 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "../components/AuthContext";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ import {
 import NewOrder from "./NewOrder";
 
 export default function Orders() {
+  const { user } = useAuth();
   const [orders, setOrders] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [editingOrder, setEditingOrder] = React.useState<any | null>(null);
@@ -79,6 +81,10 @@ export default function Orders() {
       if (filter.q) url += `q=${filter.q}&`;
       if (filter.status !== "all") url += `status=${filter.status}&`;
       if (filter.paymentStatus !== "all") url += `paymentStatus=${filter.paymentStatus}&`;
+      
+      if (user?.role === 'agent') {
+        url += `agentId=${user.id}&`;
+      }
       
       const res = await fetch(url);
       const data = await res.json();
@@ -134,78 +140,147 @@ export default function Orders() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "PENDING": return <Badge variant="outline" className="bg-[#f1f5f9] text-[#64748b] border-none px-3 py-0.5 rounded-full text-[10px]">Хүлээгдэж буй</Badge>;
-      case "ON_DELIVERY": return <Badge variant="outline" className="bg-[#fef9c3] text-[#854d0e] border-none px-3 py-0.5 rounded-full text-[10px]">Гарсан</Badge>;
-      case "DELIVERED": return <Badge variant="outline" className="bg-[#dbeafe] text-[#1e40af] border-none px-3 py-0.5 rounded-full text-[10px]">Хүргэгдсэн</Badge>;
-      case "CANCELLED": return <Badge variant="outline" className="bg-[#fee2e2] text-[#991b1b] border-none px-3 py-0.5 rounded-full text-[10px]">Цуцлагдсан</Badge>;
+      case "PENDING": return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200/50 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Хүлээгдэж буй</Badge>;
+      case "ON_DELIVERY": return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200/50 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Замдаа яваа</Badge>;
+      case "DELIVERED": return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200/50 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Хүргэгдсэн</Badge>;
+      case "CANCELLED": return <Badge variant="outline" className="bg-slate-50 text-slate-400 border-slate-200/50 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Цуцлагдсан</Badge>;
       default: return <Badge>{status}</Badge>;
     }
   };
 
   const getPaymentBadge = (status: string) => {
     switch (status) {
-      case "PAID": return <Badge variant="outline" className="bg-[#dcfce7] text-[#166534] border-none px-3 py-0.5 rounded-full text-[10px]">Төлсөн</Badge>;
-      case "UNPAID": return <Badge variant="outline" className="bg-[#fee2e2] text-[#991b1b] border-none px-3 py-0.5 rounded-full text-[10px]">Төлөөгүй</Badge>;
+      case "PAID": return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200/50 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Төлсөн</Badge>;
+      case "UNPAID": return <Badge variant="outline" className="bg-rose-50 text-rose-600 border-rose-200/50 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Төлөөгүй</Badge>;
       default: return <Badge>{status}</Badge>;
     }
   };
 
+  const summary = React.useMemo(() => {
+    return {
+      pending: orders.filter(o => o.deliveryStatus === 'PENDING').length,
+      onDelivery: orders.filter(o => o.deliveryStatus === 'ON_DELIVERY').length,
+      unpaid: orders.filter(o => o.paymentStatus === 'UNPAID').length,
+    };
+  }, [orders]);
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">Захиалгууд</h1>
-          <p className="text-xs lg:text-sm text-slate-500 mt-1">Системд бүртгэлтэй нийт захиалгын жагсаалт.</p>
+          <h1 className="text-xl lg:text-3xl font-black text-slate-900 tracking-tighter uppercase">Захиалгууд</h1>
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Системд бүртгэлтэй нийт захиалгын хяналт</p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="rounded-lg h-9 lg:h-10 px-3 lg:px-4" onClick={() => setFilter({ q: "", status: "all", paymentStatus: "UNPAID", date: undefined })}>
-            <DollarSign size={14} className="mr-2" /> Төлөөгүй
-          </Button>
-          <Button variant="outline" size="sm" className="rounded-lg h-9 lg:h-10 px-3 lg:px-4 ml-auto" onClick={() => fetchOrders()}>
+          <Button variant="outline" size="sm" className="rounded-xl h-10 px-4 border-slate-200 hover:bg-slate-50 font-bold text-xs" onClick={() => fetchOrders()}>
             Шинэчлэх
           </Button>
         </div>
       </div>
 
-      <Card className="border border-[var(--border)] shadow-sm overflow-hidden rounded-xl">
-        <CardHeader className="bg-white border-b border-slate-100 p-3 lg:p-4">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+      {/* Quick Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <button 
+          onClick={() => setFilter({ ...filter, status: 'PENDING', paymentStatus: 'all' })}
+          className={cn(
+            "p-4 rounded-2xl border transition-all text-left group",
+            filter.status === 'PENDING' ? "bg-amber-50 border-amber-200" : "bg-white border-slate-100 hover:border-amber-200"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+              <Clock size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Хүлээгдэж буй</p>
+              <h3 className="text-xl font-black text-slate-900">{summary.pending}</h3>
+            </div>
+          </div>
+        </button>
+
+        <button 
+          onClick={() => setFilter({ ...filter, status: 'ON_DELIVERY', paymentStatus: 'all' })}
+          className={cn(
+            "p-4 rounded-2xl border transition-all text-left",
+            filter.status === 'ON_DELIVERY' ? "bg-blue-50 border-blue-200" : "bg-white border-slate-100 hover:border-blue-200"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
+              <Truck size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Замдаа яваа</p>
+              <h3 className="text-xl font-black text-slate-900">{summary.onDelivery}</h3>
+            </div>
+          </div>
+        </button>
+
+        <button 
+          onClick={() => setFilter({ ...filter, paymentStatus: 'UNPAID', status: 'all' })}
+          className={cn(
+            "p-4 rounded-2xl border transition-all text-left",
+            filter.paymentStatus === 'UNPAID' ? "bg-rose-50 border-rose-200" : "bg-white border-slate-100 hover:border-rose-200"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600">
+              <DollarSign size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Төлөөгүй</p>
+              <h3 className="text-xl font-black text-slate-900">{summary.unpaid}</h3>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <Card className="border border-slate-200/60 shadow-sm overflow-hidden rounded-2xl bg-white">
+        <CardHeader className="bg-white border-b border-slate-50 p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+              <Search className="absolute left-3 top-3 text-slate-400" size={16} />
               <Input 
-                placeholder="Хайх..." 
-                className="pl-9 h-10 bg-[#f8fafc] border-slate-200 rounded-lg focus-visible:ring-1" 
+                placeholder="Нэр, утас, дугаараар хайх..." 
+                className="pl-10 h-11 bg-slate-50 border-transparent rounded-xl focus-visible:ring-1 transition-all" 
                 value={filter.q}
                 onChange={(e) => setFilter({ ...filter, q: e.target.value })}
               />
             </div>
 
-            <div className="flex gap-2">
-              <Select value={filter.status} onValueChange={(v) => setFilter({ ...filter, status: v })}>
-                <SelectTrigger className="flex-1 lg:w-[160px] h-10 rounded-lg bg-[#f8fafc] border-slate-200">
-                  <SelectValue placeholder="Хүргэлт" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Бүх хүргэлт</SelectItem>
-                  <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
-                  <SelectItem value="ON_DELIVERY">Гарсан</SelectItem>
-                  <SelectItem value="DELIVERED">Хүргэгдсэн</SelectItem>
-                  <SelectItem value="CANCELLED">Цуцлагдсан</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={filter.paymentStatus} onValueChange={(v) => setFilter({ ...filter, paymentStatus: v })}>
-                <SelectTrigger className="flex-1 lg:w-[160px] h-10 rounded-lg bg-[#f8fafc] border-slate-200">
-                  <SelectValue placeholder="Төлбөр" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Бүх төлбөр</SelectItem>
-                  <SelectItem value="PAID">Төлсөн</SelectItem>
-                  <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100">
+              {[
+                { id: 'all', label: 'Бүгд' },
+                { id: 'PENDING', label: 'Хүлээгдэх' },
+                { id: 'ON_DELIVERY', label: 'Замдаа' },
+                { id: 'DELIVERED', label: 'Хүргэгдсэн' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilter({ ...filter, status: tab.id })}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
+                    filter.status === tab.id 
+                      ? "bg-white text-blue-600 shadow-sm" 
+                      : "text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
+
+            <Select value={filter.paymentStatus} onValueChange={(v) => setFilter({ ...filter, paymentStatus: v })}>
+              <SelectTrigger className="w-full lg:w-[140px] h-11 rounded-xl bg-slate-50 border-transparent font-bold text-xs">
+                <SelectValue placeholder="Төлбөр" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                <SelectItem value="all" className="text-xs font-bold">Бүх төлбөр</SelectItem>
+                <SelectItem value="PAID" className="text-xs font-bold text-emerald-600">Төлсөн</SelectItem>
+                <SelectItem value="UNPAID" className="text-xs font-bold text-rose-600">Төлөөгүй</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -232,36 +307,39 @@ export default function Orders() {
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-10 text-slate-400">Захиалга олдсонгүй.</TableCell>
                   </TableRow>
-                ) : orders.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-slate-50 transition-colors">
-                    <TableCell className="font-mono text-[10px] font-bold text-slate-500">{order.orderNumber}</TableCell>
-                    <TableCell className="font-semibold text-sm text-slate-800">{order.receiverName}</TableCell>
-                    <TableCell className="text-xs text-slate-600">{order.phone}</TableCell>
-                    <TableCell className="max-w-[180px] truncate text-xs text-slate-500">
+                ) : orders.map((order, i) => (
+                  <TableRow 
+                    key={order.id} 
+                    className="hover:bg-slate-900 group transition-all duration-200 cursor-default"
+                  >
+                    <TableCell className="font-mono text-[10px] font-bold text-slate-500 group-hover:text-blue-400 transition-colors uppercase tracking-widest">{order.orderNumber}</TableCell>
+                    <TableCell className="font-bold text-[13px] text-slate-800 group-hover:text-white transition-colors tracking-tight">{order.receiverName}</TableCell>
+                    <TableCell className="text-xs font-medium text-slate-600 group-hover:text-slate-300 transition-colors">{order.phone}</TableCell>
+                    <TableCell className="max-w-[180px] truncate text-[11px] font-medium text-slate-500 group-hover:text-slate-400 transition-colors">
                       <div className="flex flex-col">
-                        <span>{order.district}, {order.khoroo}, {order.addressText}</span>
+                        <span className="truncate">{order.district}, {order.khoroo}, {order.addressText}</span>
                         {order.latitude && order.longitude && (
                           <a 
                             href={`https://www.openstreetmap.org/?mlat=${order.latitude}&mlon=${order.longitude}#map=17/${order.latitude}/${order.longitude}`} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1"
+                            className="text-[10px] text-blue-500 group-hover:text-blue-400 font-black hover:underline flex items-center gap-1 mt-1 transition-colors uppercase"
                           >
-                            <MapPin size={10} /> Байршил харах
+                            <MapPin size={10} /> Байршил
                           </a>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-slate-900">{order.totalAmount.toLocaleString()}₮</TableCell>
+                    <TableCell className="text-right font-black text-slate-900 group-hover:text-white transition-colors">{order.totalAmount.toLocaleString()}₮</TableCell>
                     <TableCell>
                       <Select 
                         value={order.paymentStatus || ""} 
                         onValueChange={(v) => updateStatus(order.id, "paymentStatus", v)}
                       >
-                        <SelectTrigger className="border-none shadow-none bg-transparent hover:bg-slate-100 h-7 p-0 px-1 gap-1">
+                        <SelectTrigger className="border-none shadow-none bg-transparent hover:bg-white/10 group-hover:text-white h-7 p-0 px-1 gap-1 transition-colors">
                           {getPaymentBadge(order.paymentStatus)}
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                           <SelectItem value="UNPAID">Төлөөгүй</SelectItem>
                           <SelectItem value="PAID">Төлсөн</SelectItem>
                         </SelectContent>
@@ -272,10 +350,10 @@ export default function Orders() {
                         value={order.deliveryStatus || ""} 
                         onValueChange={(v) => updateStatus(order.id, "deliveryStatus", v)}
                       >
-                        <SelectTrigger className="border-none shadow-none bg-transparent hover:bg-slate-100 h-7 p-0 px-1 gap-1">
+                        <SelectTrigger className="border-none shadow-none bg-transparent hover:bg-white/10 group-hover:text-white h-7 p-0 px-1 gap-1 transition-colors">
                           {getStatusBadge(order.deliveryStatus)}
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                           <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
                           <SelectItem value="ON_DELIVERY">Хүргэлтэнд гарсан</SelectItem>
                           <SelectItem value="DELIVERED">Хүргэгдсэн</SelectItem>
@@ -284,21 +362,55 @@ export default function Orders() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <div className="flex justify-center gap-1">
+                      <div className="flex justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {order.deliveryStatus === 'PENDING' && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                            onClick={() => updateStatus(order.id, "deliveryStatus", "ON_DELIVERY")}
+                            title="Хүргэлтэнд гаргах"
+                          >
+                            <Truck size={14} />
+                          </Button>
+                        )}
+                        {order.deliveryStatus === 'ON_DELIVERY' && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                            onClick={() => updateStatus(order.id, "deliveryStatus", "DELIVERED")}
+                            title="Хүргэгдсэн гэж тэмдэглэх"
+                          >
+                            <CheckCircle2 size={14} />
+                          </Button>
+                        )}
+                        {order.paymentStatus === 'UNPAID' && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                            onClick={() => updateStatus(order.id, "paymentStatus", "PAID")}
+                            title="Төлбөр төлөгдсөн"
+                          >
+                            <DollarSign size={14} />
+                          </Button>
+                        )}
+                        
                         <DropdownMenu>
-                          <DropdownMenuTrigger className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-7 w-7 text-slate-400 hover:text-slate-900")}>
+                          <DropdownMenuTrigger className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 text-slate-400 hover:text-slate-900 group-hover:text-white group-hover:bg-white/10 transition-colors rounded-lg")}>
                             <MoreHorizontal size={14} />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                          <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl border-slate-100 shadow-2xl">
                             <DropdownMenuItem 
-                              className="text-xs cursor-pointer flex items-center gap-2"
+                              className="text-xs font-bold px-3 py-2 rounded-lg cursor-pointer flex items-center gap-2 hover:bg-slate-50"
                               onClick={() => setEditingOrder(order)}
                             >
-                              <Pencil size={14} /> Засварлах
+                              <Pencil size={14} className="text-slate-400" /> Засварлах
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
+                            <DropdownMenuSeparator className="my-1 bg-slate-50" />
                             <DropdownMenuItem 
-                              className="text-xs cursor-pointer text-red-600 focus:text-red-600 flex items-center gap-2"
+                              className="text-xs font-bold px-3 py-2 rounded-lg cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50 flex items-center gap-2"
                               onClick={() => deleteOrder(order.id)}
                             >
                               <Trash2 size={14} /> Устгах

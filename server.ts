@@ -41,12 +41,13 @@ app.get("/api/customers/search", async (req, res) => {
 });
 
 app.get("/api/orders", async (req, res) => {
-  const { status, paymentStatus, phone, q, startDate, endDate, limit } = req.query;
+  const { status, paymentStatus, phone, q, startDate, endDate, limit, agentId } = req.query;
   
   let where: any = {};
   if (status) where.deliveryStatus = String(status);
   if (paymentStatus) where.paymentStatus = String(paymentStatus);
   if (phone) where.phone = { contains: String(phone) };
+  if (agentId) where.agentId = parseInt(String(agentId));
   if (q) {
     where.OR = [
       { receiverName: { contains: String(q) } },
@@ -275,6 +276,49 @@ app.delete("/api/orders/:id", async (req, res) => {
   }
 });
 
+app.post("/api/login", async (req, res) => {
+  const { phone, email, password } = req.body;
+  
+  try {
+    // 1. Try to find in User table (Admin)
+    if (email) {
+      // Allow 'admin' shorthand for 'admin@delivery.mn'
+      const identifier = email === "admin" ? "admin@delivery.mn" : email;
+      const user = await prisma.user.findUnique({ where: { email: identifier } });
+      if (user) {
+        if (user.password === password) {
+          return res.json({ 
+            success: true, 
+            user: { id: user.id, name: user.name, role: user.role, email: user.email } 
+          });
+        } else {
+          return res.status(401).json({ error: "Нэвтрэх нууц үг буруу байна." });
+        }
+      }
+    }
+
+    // 2. Try to find in DeliveryAgent table (Drivers)
+    if (phone) {
+      const agent = await prisma.deliveryAgent.findUnique({ where: { phone: String(phone) } });
+      if (agent) {
+        if (agent.password === password) {
+          return res.json({ 
+            success: true, 
+            user: { id: agent.id, name: agent.name, role: agent.role, phone: agent.phone } 
+          });
+        } else {
+          return res.status(401).json({ error: "Нэвтрэх нууц үг буруу байна." });
+        }
+      }
+    }
+
+    res.status(401).json({ error: "Нэвтрэх и-мэйл эсвэл утасны дугаар бүртгэлгүй байна." });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 app.get("/api/agents", async (req, res) => {
   try {
     const agents = await prisma.deliveryAgent.findMany({
@@ -299,17 +343,52 @@ app.get("/api/agents", async (req, res) => {
 
 app.post("/api/agents", async (req, res) => {
   try {
-    const agent = await prisma.deliveryAgent.create({ data: req.body });
+    const { name, phone, password, status } = req.body;
+    const agent = await prisma.deliveryAgent.create({ 
+      data: {
+        name,
+        phone,
+        password: password || "123456",
+        status: status || "active"
+      } 
+    });
     res.json(agent);
   } catch (error: any) {
     console.error("Agent creation error:", error);
-    res.status(500).json({ error: error.message || "Create failed" });
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: "Энэ утасны дугаар аль хэдийн бүртгэгдсэн байна." });
+    }
+    res.status(500).json({ error: error.message || "Бүртгэхэд алдаа гарлаа" });
+  }
+});
+
+app.patch("/api/agents/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, phone, password, status } = req.body;
+  try {
+    const agent = await prisma.deliveryAgent.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        phone,
+        password,
+        status
+      }
+    });
+    res.json(agent);
+  } catch (error: any) {
+    console.error("Agent update error:", error);
+    res.status(500).json({ error: "Update failed" });
   }
 });
 
 app.get("/api/stats", async (req, res) => {
+  const { agentId } = req.query;
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+
+  const filter: any = {};
+  if (agentId) filter.agentId = parseInt(String(agentId));
 
   try {
     const [
@@ -321,17 +400,17 @@ app.get("/api/stats", async (req, res) => {
       totalAllTime,
       revenueAllTime
     ] = await Promise.all([
-      prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
-      prisma.order.count({ where: { createdAt: { gte: todayStart }, paymentStatus: "PAID" } }),
-      prisma.order.count({ where: { createdAt: { gte: todayStart }, paymentStatus: "UNPAID" } }),
+      prisma.order.count({ where: { ...filter, createdAt: { gte: todayStart } } }),
+      prisma.order.count({ where: { ...filter, createdAt: { gte: todayStart }, paymentStatus: "PAID" } }),
+      prisma.order.count({ where: { ...filter, createdAt: { gte: todayStart }, paymentStatus: "UNPAID" } }),
       prisma.order.aggregate({
-        where: { createdAt: { gte: todayStart }, paymentStatus: "PAID" },
+        where: { ...filter, createdAt: { gte: todayStart }, paymentStatus: "PAID" },
         _sum: { totalAmount: true }
       }),
-      prisma.order.count({ where: { createdAt: { gte: todayStart }, deliveryStatus: "DELIVERED" } }),
-      prisma.order.count(),
+      prisma.order.count({ where: { ...filter, createdAt: { gte: todayStart }, deliveryStatus: "DELIVERED" } }),
+      prisma.order.count({ where: { ...filter } }),
       prisma.order.aggregate({
-        where: { paymentStatus: "PAID" },
+        where: { ...filter, paymentStatus: "PAID" },
         _sum: { totalAmount: true }
       }),
     ]);
@@ -351,14 +430,185 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
+app.get("/api/stats/trend", async (req, res) => {
+  const { agentId } = req.query;
+  const now = new Date();
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(now.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const filter: any = {
+    createdAt: { gte: sevenDaysAgo },
+    paymentStatus: "PAID"
+  };
+  if (agentId) filter.agentId = parseInt(String(agentId));
+
+  try {
+    const orders = await prisma.order.findMany({
+      where: filter,
+      select: {
+        createdAt: true,
+        totalAmount: true
+      }
+    });
+
+    // Group by date
+    const dailyData: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(now.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      dailyData[dateStr] = 0;
+    }
+
+    orders.forEach(o => {
+      const dateStr = o.createdAt.toISOString().split('T')[0];
+      if (dailyData[dateStr] !== undefined) {
+        dailyData[dateStr] += o.totalAmount;
+      }
+    });
+
+    const result = Object.entries(dailyData)
+      .map(([date, revenue]) => ({ date, revenue }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json(result);
+  } catch (error) {
+    console.error("Trend fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch trend" });
+  }
+});
+
+app.get("/api/dashboard/combined", async (req, res) => {
+  const { agentId } = req.query;
+  const now = new Date();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(now.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const filter: any = {};
+  if (agentId) filter.agentId = parseInt(String(agentId));
+
+  // Simple in-memory cache to prevent loops or rapid refreshes hitting DB
+  const cacheKey = `dashboard_${agentId || 'admin'}`;
+  const nowTs = Date.now();
+  if (dashboardCache[cacheKey] && nowTs - dashboardCache[cacheKey].ts < 10000) {
+    return res.json(dashboardCache[cacheKey].data);
+  }
+
+  try {
+    const [
+      todayOrdersData,
+      allTimeStats,
+      trendOrders,
+      recentOrders,
+      topAgents
+    ] = await Promise.all([
+      // 1. Fetch today's order data in one go for memory processing
+      prisma.order.findMany({
+        where: { ...filter, createdAt: { gte: todayStart } },
+        select: { paymentStatus: true, deliveryStatus: true, totalAmount: true }
+      }),
+      // 2. All time totals
+      Promise.all([
+        prisma.order.count({ where: filter }),
+        prisma.order.aggregate({
+          where: { ...filter, paymentStatus: "PAID" },
+          _sum: { totalAmount: true }
+        })
+      ]),
+      // 3. Trend
+      prisma.order.findMany({
+        where: { ...filter, createdAt: { gte: sevenDaysAgo }, paymentStatus: "PAID" },
+        select: { createdAt: true, totalAmount: true }
+      }),
+      // 4. Recent Orders
+      prisma.order.findMany({
+        where: filter,
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: { agent: true }
+      }),
+      // 5. Top Agents
+      !agentId ? prisma.deliveryAgent.findMany({
+        include: {
+          _count: {
+            select: { orders: { where: { deliveryStatus: "DELIVERED" } } }
+          }
+        }
+      }) : Promise.resolve([])
+    ]);
+
+    // Process today's stats in memory
+    let totalToday = todayOrdersData.length;
+    let paidToday = 0;
+    let unpaidToday = 0;
+    let revenueToday = 0;
+    let totalDelivered = 0;
+
+    todayOrdersData.forEach(o => {
+      if (o.paymentStatus === "PAID") {
+        paidToday++;
+        revenueToday += o.totalAmount;
+      } else {
+        unpaidToday++;
+      }
+      if (o.deliveryStatus === "DELIVERED") {
+        totalDelivered++;
+      }
+    });
+
+    const statsResult = {
+      totalToday,
+      paidToday,
+      unpaidToday,
+      revenueToday,
+      totalDelivered,
+      totalAllTime: allTimeStats[0],
+      revenueAllTime: allTimeStats[1]._sum.totalAmount || 0
+    };
+
+    // Process trend
+    const dailyData: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(now.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      dailyData[dateStr] = 0;
+    }
+    trendOrders.forEach(o => {
+      const dateStr = o.createdAt.toISOString().split('T')[0];
+      if (dailyData[dateStr] !== undefined) dailyData[dateStr] += o.totalAmount;
+    });
+    const trendResult = Object.entries(dailyData)
+      .map(([date, revenue]) => ({ date, revenue }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const finalData = {
+      stats: statsResult,
+      trend: trendResult,
+      recentOrders,
+      agents: topAgents
+    };
+
+    // Update cache
+    dashboardCache[cacheKey] = { ts: nowTs, data: finalData };
+
+    res.json(finalData);
+  } catch (error) {
+    console.error("Combined dashboard error:", error);
+    res.status(500).json({ error: "Failed to load dashboard data" });
+  }
+});
+
+const dashboardCache: Record<string, { ts: number, data: any }> = {};
+
 export default app;
 
 async function startServer() {
-  if (process.env.VERCEL) {
-    console.log("Running in Vercel environment");
-    return;
-  }
-
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
@@ -367,45 +617,57 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else if (process.env.NODE_ENV === "production") {
-    const distPath = path.join(process.cwd(), "dist");
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-      app.get("*", (req, res, next) => {
-        if (req.url.startsWith("/api")) return next();
-        res.sendFile(path.join(distPath, "index.html"));
-      });
+  } else {
+    // Production: Serve static files from 'dist'
+    const possiblePaths = [
+      path.join(process.cwd(), "dist"),
+      path.join(path.dirname(new URL(import.meta.url).pathname), "."),
+      process.cwd()
+    ];
+    
+    let distPath = possiblePaths[0];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(path.join(p, "index.html"))) {
+        distPath = p;
+        break;
+      }
     }
+
+    console.log(`Serving static files from: ${distPath}`);
+    app.use(express.static(distPath));
+    app.get("*", (req, res, next) => {
+      if (req.url.startsWith("/api")) return next();
+      res.sendFile(path.join(distPath, "index.html"));
+    });
   }
 
-  // Start listening only if not on Vercel
+  // Start listening
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 
-  // Background tasks - only for persistent servers
+  // Background tasks
   (async () => {
     try {
       await prisma.$connect();
       console.log("Connected to Supabase successfully.");
       
-      const admin = await prisma.user.findUnique({ where: { email: "admin@delivery.mn" } });
-      if (!admin) {
-        await prisma.user.create({
-          data: {
-            email: "admin@delivery.mn",
-            password: "admin",
-            name: "Admin User",
-          }
-        });
-        console.log("Admin user created: admin@delivery.mn / admin");
-      }
+      // Ensure admin user exists with the correct password
+      await prisma.user.upsert({
+        where: { email: "admin@delivery.mn" },
+        update: { password: "123456" },
+        create: {
+          email: "admin@delivery.mn",
+          password: "123456",
+          name: "Admin User",
+          role: "admin"
+        }
+      });
+      console.log("Admin user synced: admin@delivery.mn / 123456");
     } catch (err) {
       console.error("Background startup tasks failed:", err);
     }
   })();
 }
 
-if (!process.env.VERCEL) {
-  startServer();
-}
+startServer();

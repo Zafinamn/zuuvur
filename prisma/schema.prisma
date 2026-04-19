@@ -44,7 +44,9 @@ model Address {
 model DeliveryAgent {
   id        Int      @id @default(autoincrement())
   name      String
-  phone     String
+  phone     String   @unique
+  password  String   @default("123456") // Default password for new agents
+  role      String   @default("agent")  // roles: agent, admin
   status    String   @default("active") // active, inactive
   orders    Order[]
   createdAt DateTime @default(now())
