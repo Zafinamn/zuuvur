@@ -41,7 +41,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user);
       localStorage.setItem("swiftlog_user", JSON.stringify(data.user));
     } else {
-      throw new Error(data.error || "Нэвтэрч чадсангүй");
+      const error: any = new Error(data.error || "Нэвтэрч чадсангүй");
+      error.details = data.details;
+      throw error;
     }
   };
 

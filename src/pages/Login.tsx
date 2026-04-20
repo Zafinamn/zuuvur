@@ -24,7 +24,14 @@ export default function Login() {
       await login(isAdmin ? { email: formData.email, password: formData.password } : { phone: formData.phone, password: formData.password });
       toast.success("Тавтай морил!");
     } catch (error: any) {
-      toast.error(error.message);
+      if (error.details) {
+        toast.error(error.message, {
+          description: error.details,
+          duration: 10000,
+        });
+      } else {
+        toast.error(error.message);
+      }
     } finally {
       setLoading(false);
     }
