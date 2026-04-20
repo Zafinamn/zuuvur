@@ -315,7 +315,13 @@ app.post("/api/login", async (req, res) => {
     res.status(401).json({ error: "Нэвтрэх и-мэйл эсвэл утасны дугаар бүртгэлгүй байна." });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
+      return res.status(500).json({ 
+        error: "Өгөгдлийн сангийн холболт (DATABASE_URL) тохируулаагүй байна.",
+        details: "Settings > Secrets хэсэгт тохируулна уу."
+      });
+    }
+    res.status(500).json({ error: "Нэвтрэхэд алдаа гарлаа. Өгөгдлийн сангийн холболтоо шалгана уу." });
   }
 });
 
