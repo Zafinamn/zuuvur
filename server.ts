@@ -521,7 +521,8 @@ app.get("/api/dashboard/combined", async (req, res) => {
       allTimeStats,
       trendOrders,
       recentOrders,
-      topAgents
+      topAgents,
+      recentActivities
     ] = await Promise.all([
       // 1. Fetch today's order data in one go for memory processing
       prisma.order.findMany({
@@ -555,7 +556,14 @@ app.get("/api/dashboard/combined", async (req, res) => {
             select: { orders: { where: { deliveryStatus: "DELIVERED" } } }
           }
         }
-      }) : Promise.resolve([])
+      }) : Promise.resolve([]),
+      // 6. Recent Activities from StatusLog
+      prisma.statusLog.findMany({
+        where: agentId ? { order: { agentId: parseInt(String(agentId)) } } : {},
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: { order: true, user: true }
+      })
     ]);
 
     // Process today's stats in memory
@@ -607,7 +615,33 @@ app.get("/api/dashboard/combined", async (req, res) => {
       stats: statsResult,
       trend: trendResult,
       recentOrders,
-      agents: topAgents
+      agents: topAgents,
+      activities: recentActivities.map(log => {
+        let text = "";
+        let icon = "Activity";
+        
+        if (log.logType === "PAYMENT") {
+          text = `Төлбөр ${log.newStatus === 'PAID' ? 'баталгаажлаа' : 'цуцлагдлаа'} #${log.order.orderNumber}`;
+          icon = "CheckCircle";
+        } else if (log.logType === "DELIVERY") {
+          const statusMap: any = {
+            "ON_DELIVERY": "Замдаа гарлаа",
+            "DELIVERED": "Хүргэгдлээ",
+            "PENDING": "Хүлээгдэж байна",
+            "CANCELLED": "Цуцлагдлаа"
+          };
+          text = `${statusMap[log.newStatus] || log.newStatus} #${log.order.orderNumber}`;
+          icon = "PackageCheck";
+        }
+        
+        return {
+          id: log.id,
+          text,
+          time: log.createdAt,
+          type: log.logType.toLowerCase(),
+          icon
+        };
+      })
     };
 
     // Update cache

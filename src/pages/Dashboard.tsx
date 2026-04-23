@@ -1,4 +1,6 @@
 import * as React from "react";
+import { formatDistanceToNow } from 'date-fns';
+import { mn } from 'date-fns/locale';
 import { 
   ShoppingBag, 
   CheckCircle, 
@@ -45,13 +47,6 @@ const chartData = [
   { name: 'Sun', total: 349, revenue: 4300 },
 ];
 
-const activities = [
-  { id: 1, type: 'order', text: 'Шинэ захиалга #ORD-5231', time: '2 минутын өмнө', icon: ShoppingBag, color: 'text-blue-500', bg: 'bg-blue-50' },
-  { id: 2, type: 'payment', text: 'Төлбөр баталгаажлаа #ORD-5228', time: '15 минутын өмнө', icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-  { id: 3, type: 'delivery', text: 'Хүргэгч замдаа гарлаа - Г.Бат', time: '45 минутын өмнө', icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50' },
-  { id: 4, type: 'agent', text: 'Шинэ хүргэгч бүртгүүллээ - С.Эрдэнэ', time: '1 цагийн өмнө', icon: UserCheck, color: 'text-indigo-500', bg: 'bg-indigo-50' },
-];
-
 const MN_DAYS = ["Ням", "Дав", "Мяг", "Лха", "Пүр", "Баа", "Бям"];
 
 // Persistent timestamp to survive remounts during navigation
@@ -63,6 +58,7 @@ export default function Dashboard() {
   const [trendData, setTrendData] = React.useState<any[]>([]);
   const [recentOrders, setRecentOrders] = React.useState<any[]>([]);
   const [topAgents, setTopAgents] = React.useState<any[]>([]);
+  const [recentActivities, setRecentActivities] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -113,6 +109,10 @@ export default function Dashboard() {
           setRecentOrders(data.recentOrders);
         }
 
+        if (Array.isArray(data.activities)) {
+          setRecentActivities(data.activities);
+        }
+
         if (!isAgent && Array.isArray(data.agents)) {
           const sorted = data.agents.sort((a: any, b: any) => (b._count?.orders || 0) - (a._count?.orders || 0));
           setTopAgents(sorted.slice(0, 3));
@@ -128,6 +128,25 @@ export default function Dashboard() {
       })
       .finally(() => setLoading(false));
   }, [user?.id, user?.role]);
+
+  const getActivityIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'CheckCircle': return CheckCircle;
+      case 'PackageCheck': return PackageCheck;
+      case 'Clock': return Clock;
+      case 'UserCheck': return UserCheck;
+      default: return Activity;
+    }
+  };
+
+  const getActivityColors = (type: string) => {
+    switch (type) {
+      case 'payment': return { color: 'text-emerald-500', bg: 'bg-emerald-50' };
+      case 'delivery': return { color: 'text-blue-500', bg: 'bg-blue-50' };
+      case 'agent': return { color: 'text-indigo-500', bg: 'bg-indigo-50' };
+      default: return { color: 'text-slate-500', bg: 'bg-slate-50' };
+    }
+  };
 
   const StatCard = ({ 
     title, 
@@ -352,17 +371,29 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-50">
-                {activities.map((act, i) => (
-                  <div key={act.id} className="p-4 flex gap-3 hover:bg-slate-50 transition-colors">
-                    <div className={`h-8 w-8 rounded-lg ${act.bg} flex items-center justify-center shrink-0`}>
-                      <act.icon className={act.color} size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 leading-tight">{act.text}</p>
-                      <p className="text-[10px] font-medium text-slate-400 mt-1 uppercase tracking-tight">{act.time}</p>
-                    </div>
+                {recentActivities.length > 0 ? (
+                  recentActivities.map((act, i) => {
+                    const Icon = getActivityIcon(act.icon);
+                    const colors = getActivityColors(act.type);
+                    return (
+                      <div key={act.id} className="p-4 flex gap-3 hover:bg-slate-50 transition-colors">
+                        <div className={`h-8 w-8 rounded-lg ${colors.bg} flex items-center justify-center shrink-0`}>
+                          <Icon className={colors.color} size={16} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 leading-tight">{act.text}</p>
+                          <p className="text-[10px] font-medium text-slate-400 mt-1 uppercase tracking-tight">
+                            {formatDistanceToNow(new Date(act.time), { addSuffix: true, locale: mn })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-10 text-center">
+                    <p className="text-xs font-bold text-slate-300 uppercase tracking-widest">Идэвх байхгүй байна</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
