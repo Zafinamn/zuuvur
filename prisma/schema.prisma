@@ -90,7 +90,7 @@ model Order {
 model StatusLog {
   id         Int      @id @default(autoincrement())
   orderId    Int
-  order      Order    @relation(fields: [orderId], references: [id])
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   userId     Int?
   user       User?    @relation(fields: [userId], references: [id])
   oldStatus  String
