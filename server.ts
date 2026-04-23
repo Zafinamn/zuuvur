@@ -9,6 +9,16 @@ const prisma = new PrismaClient();
 export const app = express();
 app.use(express.json());
 
+// API health check
+app.get("/api/health", async (req, res) => {
+  try {
+    await prisma.$connect();
+    res.json({ status: "ok", database: "connected" });
+  } catch (error) {
+    res.status(500).json({ status: "error", database: "disconnected", message: error instanceof Error ? error.message : "Database error" });
+  }
+});
+
 // Request logger 
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -625,55 +635,49 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Production: Serve static files from 'dist'
-    const possiblePaths = [
-      path.join(process.cwd(), "dist"),
-      path.join(path.dirname(new URL(import.meta.url).pathname), "."),
-      process.cwd()
-    ];
-    
-    let distPath = possiblePaths[0];
-    for (const p of possiblePaths) {
-      if (fs.existsSync(path.join(p, "index.html"))) {
-        distPath = p;
-        break;
-      }
-    }
-
+    const distPath = path.join(process.cwd(), "dist");
     console.log(`Serving static files from: ${distPath}`);
-    app.use(express.static(distPath));
-    app.get("*", (req, res, next) => {
-      if (req.url.startsWith("/api")) return next();
-      res.sendFile(path.join(distPath, "index.html"));
+    
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res, next) => {
+        if (req.url.startsWith("/api")) return next();
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    } else {
+      console.warn("WARNING: dist directory not found. Static files will not be served.");
+      app.get("*", (req, res, next) => {
+        if (req.url.startsWith("/api")) return next();
+        res.status(404).send("Front-end build (dist) not found. Please run 'npm run build' first.");
+      });
+    }
+  }
+
+  // Background tasks
+  try {
+    await prisma.$connect();
+    console.log("Connected to Supabase successfully.");
+    
+    // Ensure admin user exists with the correct password
+    await prisma.user.upsert({
+      where: { email: "admin@delivery.mn" },
+      update: { password: "123456" },
+      create: {
+        email: "admin@delivery.mn",
+        password: "123456",
+        name: "Admin User",
+        role: "admin"
+      }
     });
+    console.log("Admin user synced: admin@delivery.mn / 123456");
+  } catch (err) {
+    console.error("Database startup tasks failed:", err);
   }
 
   // Start listening
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
-
-  // Background tasks
-  (async () => {
-    try {
-      await prisma.$connect();
-      console.log("Connected to Supabase successfully.");
-      
-      // Ensure admin user exists with the correct password
-      await prisma.user.upsert({
-        where: { email: "admin@delivery.mn" },
-        update: { password: "123456" },
-        create: {
-          email: "admin@delivery.mn",
-          password: "123456",
-          name: "Admin User",
-          role: "admin"
-        }
-      });
-      console.log("Admin user synced: admin@delivery.mn / 123456");
-    } catch (err) {
-      console.error("Background startup tasks failed:", err);
-    }
-  })();
 }
 
 startServer();
