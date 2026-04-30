@@ -315,9 +315,9 @@ export default function Orders() {
                     <TableCell className="font-mono text-[10px] font-bold text-slate-500 group-hover:text-blue-400 transition-colors uppercase tracking-widest">{order.orderNumber}</TableCell>
                     <TableCell className="font-bold text-[13px] text-slate-800 group-hover:text-white transition-colors tracking-tight">{order.receiverName}</TableCell>
                     <TableCell className="text-xs font-medium text-slate-600 group-hover:text-slate-300 transition-colors">{order.phone}</TableCell>
-                    <TableCell className="max-w-[180px] truncate text-[11px] font-medium text-slate-500 group-hover:text-slate-400 transition-colors">
+                    <TableCell className="min-w-[180px] text-[11px] font-medium text-slate-500 group-hover:text-slate-400 transition-colors">
                       <div className="flex flex-col">
-                        <span className="truncate">{order.district}, {order.khoroo}, {order.addressText}</span>
+                        <span className="break-words whitespace-normal leading-relaxed">{order.district}, {order.khoroo}, {order.addressText}</span>
                         {order.latitude && order.longitude && (
                           <a 
                             href={`https://www.openstreetmap.org/?mlat=${order.latitude}&mlon=${order.longitude}#map=17/${order.latitude}/${order.longitude}`} 

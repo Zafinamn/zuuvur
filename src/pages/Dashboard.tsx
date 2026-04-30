@@ -433,6 +433,9 @@ export default function Dashboard() {
                           <span className="text-[10px] text-slate-300">•</span>
                           <p className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">{new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                         </div>
+                        <p className="text-[11px] font-bold text-slate-600 mt-1 whitespace-normal break-words leading-tight bg-slate-50 p-1.5 rounded-lg border border-slate-100/50">
+                          {order.district}, {order.khoroo}, {order.addressText}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
